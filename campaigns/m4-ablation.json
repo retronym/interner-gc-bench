@@ -1,0 +1,38 @@
+{
+  "name": "m4-ablation",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 3,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 10 -i 20 -t 1 -prof gc"
+  },
+  "variants": {
+    "chunked-strong": "",
+    "chunked-boxed": "",
+    "chunked-weak": "",
+    "chunked-weak-lazy": ""
+  },
+  "variantJmhArgs": {
+    "chunked-strong": "-p table=chunked-strong",
+    "chunked-boxed": "-p table=chunked-boxed",
+    "chunked-weak": "-p table=chunked-weak",
+    "chunked-weak-lazy": "-p table=chunked-weak-lazy"
+  },
+  "description": [
+    "Where does `chunked-weak`'s cost over `chunked-strong` come from? In `m4-separate`, with GC pauses subtracted, `chunked-weak` takes 528 ms per compile against 466 for `chunked-strong` (and 491 for `chained-weak`), so most of the weak table's cost is in the mutator, not in pauses.",
+    "`chunked-boxed` holds each element in a strong box carrying the hash: the weak table's allocation per insert and extra load per probe, without weakness. `chunked-weak-lazy` is a weak table without a `ReferenceQueue`: no enqueueing and no drain per lookup; cleared slots are skipped by probes, reused by inserts and dropped by rebuilds.",
+    "G1, 8 GB heap, Graal 25.4.4, one fork per table and round."
+  ],
+  "variantDescriptions": {
+    "chunked-strong": "elements stored directly in 64K-slot chunks",
+    "chunked-boxed": "each element in a strong `Box` carrying the hash: the weak table's allocation and indirection, without weakness",
+    "chunked-weak": "each element in a `WeakReference` carrying the hash, with a `ReferenceQueue` drained before each lookup (retronym/scala3#117)",
+    "chunked-weak-lazy": "as `chunked-weak`, but with no `ReferenceQueue`: cleared slots are found by probes and inserts, and dropped by rebuilds"
+  },
+  "testbed": "m4",
+  "loadgate": {
+    "maxCores": 1.5,
+    "quietSecs": 30
+  }
+}

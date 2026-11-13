@@ -119,6 +119,17 @@ On the M4 testbed (`m4`), Graal 25.4.4, G1, 8 GB, full-size compiles, each fork 
 | chunked-weak | 563 ± 10 | −11.4% |
 | chunked-strong | 486 ± 8 | −23.5% |
 
+Splitting each measured iteration into GC pauses (from the cell's `gc.log`, every pause that falls inside the iteration) and the rest:
+
+| table | ms/compile | of which pauses | the rest (mutator) |
+|---|--:|--:|--:|
+| chained-weak | 635 | 144 | 491 |
+| chained-strong | 600 | 142 | 458 |
+| chunked-weak | 563 | 34 | 528 |
+| chunked-strong | 486 | 20 | 466 |
+
+The three rounds agree within 6 ms on the mutator column. "The rest" includes whatever concurrent GC work (marking, card refinement) costs the compiling thread on a 10-core machine. The chunked layout's win is all in the pauses (110–120 ms per compile, a fourfold to sevenfold cut); its mutator code is no faster than the chained table's, and `chunked-weak`'s is 37 ms slower than `chained-weak`'s. Weakness costs the mutator 33 ms per compile in the chained layout, which allocates an `Entry` per insert either way, and 62 ms in the chunked layout, where the strong table allocates nothing per insert and the weak one a `Ref`. So for `chunked-weak` the remaining cost over a strong table is mostly not GC at all (14 ms of pauses against 62 ms of mutator). `m4-ablation` splits that 62 ms between the box (allocation and indirection) and the weak reference (constructor, queue, drain).
+
 `m4-threads` (2 rounds), ms per compile:
 
 | table | 1 compile | 2 at once | 4 at once |

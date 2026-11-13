@@ -33,11 +33,13 @@ public interface Interner<K> {
             case "scoped" -> new Scoped<>(initialCapacity);
             case "chunked-weak-rejuv" -> new ChunkedWeak<>(initialCapacity, 1, 256);
             case "chunked-weak-rejuv-all" -> new ChunkedWeak<>(initialCapacity, 1, 0);
+            case "chunked-boxed" -> new ChunkedBoxed<>(initialCapacity);
+            case "chunked-weak-lazy" -> new ChunkedWeakLazy<>(initialCapacity);
             default -> throw new IllegalArgumentException("unknown interner: " + name);
         };
     }
 
-    List<String> NAMES = List.of("chained-weak", "chained-strong", "chunked-weak", "chunked-strong", "scoped", "chunked-weak-rejuv", "chunked-weak-rejuv-all");
+    List<String> NAMES = List.of("chained-weak", "chained-strong", "chunked-weak", "chunked-strong", "scoped", "chunked-weak-rejuv", "chunked-weak-rejuv-all", "chunked-boxed", "chunked-weak-lazy");
 
     /** Whether a table drops elements nobody else holds, so that it can outlive a compile. */
     static boolean isWeak(String name) { return name.contains("-weak"); }

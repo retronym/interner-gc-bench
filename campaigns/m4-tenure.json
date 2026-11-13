@@ -1,0 +1,41 @@
+{
+  "name": "m4-tenure",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 3,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 10 -i 20 -t 1 -prof gc"
+  },
+  "variants": {
+    "chained-weak": "",
+    "chunked-weak": "",
+    "chunked-weak-rejuv": "",
+    "chunked-weak-lazy": "",
+    "chunked-strong": ""
+  },
+  "variantJmhArgs": {
+    "chained-weak": "-p table=chained-weak",
+    "chunked-weak": "-p table=chunked-weak",
+    "chunked-weak-rejuv": "-p table=chunked-weak-rejuv",
+    "chunked-weak-lazy": "-p table=chunked-weak-lazy",
+    "chunked-strong": "-p table=chunked-strong"
+  },
+  "description": [
+    "The tables under a small young generation: a 2 GB heap with `-Xmn256m`, G1 regions pinned at 4 MB (so the humongous threshold is the 2 MB of an 8 GB heap). Each compile now sees many young GCs, G1's tenuring threshold drops to 1 or 2, and chunks are promoted within a compile, after which inserts into them dirty cards as inserts into the chained table's humongous array do. A local probe at these settings (README, \"Keeping chunks young\") gave `chunked-weak-rejuv` 673 ms per compile against 736 for `chunked-weak` and 744 for `chained-weak`.",
+    "Graal 25.4.4, one fork per table and round, fresh tables per compile."
+  ],
+  "variantDescriptions": {
+    "chained-weak": "dotc's `WeakHashSet` layout",
+    "chunked-weak": "retronym/scala3#117's chunked weak table",
+    "chunked-weak-rejuv": "`chunked-weak`, copying each element chunk written at least 256 times since the last GC, so chunks stay young",
+    "chunked-weak-lazy": "`chunked-weak` without a `ReferenceQueue`",
+    "chunked-strong": "the chunked layout with strong slots"
+  },
+  "testbed": "m4",
+  "loadgate": {
+    "maxCores": 1.5,
+    "quietSecs": 30
+  },
+  "jvmArgs": "-XX:+UseG1GC -Xms2G -Xmx2G -Xmn256m -XX:G1HeapRegionSize=4m"
+}

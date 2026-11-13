@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class InternerTest {
     static final List<String> ALL = Interner.NAMES;
-    static final List<String> WEAK = List.of("chained-weak", "chunked-weak", "chunked-weak-rejuv");
+    static final List<String> WEAK = List.of("chained-weak", "chunked-weak", "chunked-weak-rejuv", "chunked-weak-lazy");
     static final Shape<Node> REF = Node.KINDS[Node.REF];
     static final Shape<Node> LIST = Node.KINDS[Node.LIST];
 
@@ -62,6 +62,8 @@ class InternerTest {
         assertEquals(n, t.size());
         if (t instanceof ChunkedWeak<?> cw) assertEquals(1 << 20, cw.capacity());
         if (t instanceof ChunkedStrong<?> cs) assertEquals(1 << 20, cs.capacity());
+        if (t instanceof ChunkedBoxed<?> cb) assertEquals(1 << 20, cb.capacity());
+        if (t instanceof ChunkedWeakLazy<?> cl) assertEquals(1 << 20, cl.capacity());
     }
 
     @ParameterizedTest @FieldSource("ALL")
@@ -128,6 +130,25 @@ class InternerTest {
         int grown = t.capacity();
         awaitCollected(probe);
         // churn of short-lived elements: tombstones fill the table, but live never reaches a quarter
+        for (; i < 400_000; i++) {
+            t.intern(i * 0x9E3779B1, REF, null, ss.get(i), null);
+            if (i % 50_000 == 0) System.gc();
+        }
+        assertTrue(t.capacity() <= grown, "capacity " + t.capacity() + " grew past " + grown);
+    }
+
+    @org.junit.jupiter.api.Test
+    void chunkedWeakLazyReusesClearedSlotsWithoutGrowing() throws Exception {
+        ChunkedWeakLazy<Node> t = new ChunkedWeakLazy<>(16);
+        List<Sym> ss = syms(400_000);
+        WeakReference<Node> probe = null;
+        int i = 0;
+        for (; i < 200_000; i++) {
+            Node x = t.intern(i * 0x9E3779B1, REF, null, ss.get(i), null);
+            if (probe == null) probe = new WeakReference<>(x);
+        }
+        int grown = t.capacity();
+        awaitCollected(probe);
         for (; i < 400_000; i++) {
             t.intern(i * 0x9E3779B1, REF, null, ss.get(i), null);
             if (i % 50_000 == 0) System.gc();
