@@ -137,7 +137,7 @@ public final class ChunkedWeak<K> implements Interner<K> {
     }
 
     /** The number of slots. */
-    int capacity() { return mask + 1; }
+    public int capacity() { return mask + 1; }
 
     @Override
     public List<Object> backingArrays() {

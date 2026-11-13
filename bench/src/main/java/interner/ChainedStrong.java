@@ -70,5 +70,5 @@ public final class ChainedStrong<K> implements Interner<K> {
     public void clear() { init(); }
 
     @Override
-    public List<Object> backingArrays() { return List.of(table); }
+    public List<Object> backingArrays() { return List.of((Object) table); }
 }

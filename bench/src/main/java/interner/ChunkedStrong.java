@@ -76,7 +76,7 @@ public final class ChunkedStrong<K> implements Interner<K> {
         count = 0;
     }
 
-    int capacity() { return mask + 1; }
+    public int capacity() { return mask + 1; }
 
     @Override
     public List<Object> backingArrays() {

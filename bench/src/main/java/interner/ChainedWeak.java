@@ -105,5 +105,5 @@ public final class ChainedWeak<K> implements Interner<K> {
     }
 
     @Override
-    public List<Object> backingArrays() { return List.of(table); }
+    public List<Object> backingArrays() { return List.of((Object) table); }
 }
