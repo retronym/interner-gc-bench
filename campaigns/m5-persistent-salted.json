@@ -36,7 +36,7 @@
     "chunked-weak-fresh": "control: `chunked-weak` with a fresh table per compile, at the same heap settings"
   },
   "loadgate": {
-    "maxCores": 1.5,
+    "maxCores": 2.5,
     "quietSecs": 30
   },
   "jvmArgs": "-XX:+UseG1GC -Xms2G -Xmx2G -Xmn256m -XX:G1HeapRegionSize=4m"
