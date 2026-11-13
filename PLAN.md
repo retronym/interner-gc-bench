@@ -50,7 +50,6 @@ DONE
 TODO
 - Persistent tables at a small young generation (measured: `m5-persistent`, README): dead entries stay in the table until old-generation marking frees their elements, so the table grows and scans tens of millions of cards. Worth a look: clearing entries by compile (an epoch per entry) instead of waiting for reference processing.
 - `m4-tenure` (fresh tables, queued); read into the README.
-- Why G1's concurrent cycles clear so few of a persistent table's dead weak referents (remark discovers ~150K of millions, clears ~10K) while a Full GC clears them all. Candidates: elements promoted during marking are above TAMS and implicitly live; discovery only of references traced by marking. A WhiteBox test could settle it.
 - A Run-tagged table that drops (or demotes to weak) a Run's entries when the Run ends, measured persistent against `m5-persistent`.
 - Void and rerun the `smoke-whitebox` cells (their logs were overwritten by the paired fork that JMH's pattern also matched), or drop that campaign in favour of `Driver`.
 
