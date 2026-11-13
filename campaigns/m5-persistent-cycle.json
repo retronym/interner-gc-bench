@@ -1,0 +1,42 @@
+{
+  "name": "m5-persistent-cycle",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 2,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 10 -i 20 -t 1 -prof gc"
+  },
+  "variants": {
+    "chained-weak-fresh": "",
+    "chained-weak": "",
+    "chunked-weak-fresh": "",
+    "chunked-weak": "",
+    "chunked-weak-lazy-fresh": "",
+    "chunked-weak-lazy": ""
+  },
+  "variantJmhArgs": {
+    "chained-weak-fresh": "-p table=chained-weak -p persistent=false -p gcBetween=true",
+    "chained-weak": "-p table=chained-weak -p persistent=true -p gcBetween=true",
+    "chunked-weak-fresh": "-p table=chunked-weak -p persistent=false -p gcBetween=true",
+    "chunked-weak": "-p table=chunked-weak -p persistent=true -p gcBetween=true",
+    "chunked-weak-lazy-fresh": "-p table=chunked-weak-lazy -p persistent=false -p gcBetween=true",
+    "chunked-weak-lazy": "-p table=chunked-weak-lazy -p persistent=true -p gcBetween=true"
+  },
+  "description": [
+    "Weak tables, persistent against fresh, with a concurrent cycle started before each compile (`gcBetween`: `System.gc()` outside the timing, with `-XX:+ExplicitGCInvokesConcurrent`), as a resident compiler could at the end of each Run. Without it, cycles start mid-compile and clear a fraction of a persistent table's dead entries, which grows until a Full GC (`m5-persistent-salted`). Asks what bounding the table this way costs. 2 GB, `-Xmn256m`, 4 MB regions, Graal 25.4.4 on the M5 Pro."
+  ],
+  "variantDescriptions": {
+    "chained-weak-fresh": "`chained-weak`, a fresh table per compile",
+    "chained-weak": "`chained-weak`, one table for the fork",
+    "chunked-weak-fresh": "`chunked-weak`, a fresh table per compile",
+    "chunked-weak": "`chunked-weak`, one table for the fork",
+    "chunked-weak-lazy-fresh": "`chunked-weak-lazy`, a fresh table per compile",
+    "chunked-weak-lazy": "`chunked-weak-lazy`, one table for the fork"
+  },
+  "loadgate": {
+    "maxCores": 2.5,
+    "quietSecs": 30
+  },
+  "jvmArgs": "-XX:+UseG1GC -Xms2G -Xmx2G -Xmn256m -XX:G1HeapRegionSize=4m -XX:+ExplicitGCInvokesConcurrent"
+}

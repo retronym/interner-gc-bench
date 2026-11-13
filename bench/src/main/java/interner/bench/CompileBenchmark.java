@@ -44,6 +44,14 @@ public class CompileBenchmark {
     @Param({"false"})
     public boolean persistent;
 
+    /**
+     * Call `System.gc()` before each iteration (one compile in single-shot mode), outside the timing. With
+     * `-XX:+ExplicitGCInvokesConcurrent` that starts a concurrent cycle when the previous compile's types are dead,
+     * as a resident compiler could at the end of each Run.
+     */
+    @Param({"false"})
+    public boolean gcBetween;
+
     private WorkloadConfig cfg;
     private long seed;
     private Interner<Node> kept;
@@ -57,6 +65,11 @@ public class CompileBenchmark {
         if (persistent && !Interner.isWeak(table)) {
             throw new IllegalArgumentException(table + " cannot persist: a strong table would keep every compile's types");
         }
+    }
+
+    @Setup(Level.Iteration)
+    public void gcBetween() {
+        if (gcBetween) System.gc();
     }
 
     @Benchmark
