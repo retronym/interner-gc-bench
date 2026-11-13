@@ -260,7 +260,16 @@ A fresh table stays at 1.5M entries and about 620 ms. The persistent one still g
 | chunked-weak-rejuv | yes | 1,228 | 317 | 911 | 5 |
 | chunked-weak-lazy | yes | 1,056 | 346 | 710 | 4 |
 
-Persistence still costs 1.4 to 2 times a fresh table, about half in pauses and half in the mutator, which now walks a table of up to 15M entries, most of them dead. Here the queue-less table is the best of the weak ones, the reverse of the fresh M4 result: it reuses a cleared slot on the probe sequence as soon as its referent is cleared, without waiting for the queue to be drained, and in a persistent table most probed slots are cleared. Every persistent fork still needs Full GCs to bring the table back down.
+Persistence still costs 1.4 to 2 times a fresh table, about half in pauses and half in the mutator, which now walks a table of up to 15M entries, most of them dead. Here the queue-less table is the best of the weak ones, the reverse of the fresh M4 result: it reuses a cleared slot on the probe sequence as soon as its referent is cleared, without waiting for the queue to be drained, and in a persistent table most probed slots are cleared. Every persistent fork still needs Full GCs to bring the table back down. 
+
+Timing explains the misses. A concurrent cycle can clear an entry only if its element was dead when the cycle started and was promoted before it (G1 treats objects allocated or promoted above the region's top-at-mark-start as live for that cycle). Cycles that start mid-compile find the current compile's elements alive and many earlier ones too recently promoted. Starting a cycle at the end of each compile (`Driver` with `-Dgc.between=true -XX:+ExplicitGCInvokesConcurrent`, one run each, mean of compiles 5–19) bounds the table: `chained-weak` holds at 2.34M entries (one compile's worth plus the hot pool and survivors) with the heap at about 520 MB and no Full GCs in 30 compiles. That cycle has a cost of its own, mostly the mixed collections it brings into the next compile:
+
+| table | fresh | fresh, cycle per compile | persistent, cycle per compile |
+|---|--:|--:|--:|
+| chained-weak | ~620 | 836 | 943 |
+| chunked-weak | ~640 | 795 | 989 |
+
+So a resident compiler that ends each Run with a concurrent cycle keeps its weak table bounded, at roughly a third more per compile than a fresh table here. A table that drops a Run's entries itself would get the bound without the cycle.
 
 This is the case for clearing by compile rather than by GC: a resident compiler knows when a compile's types die (at the end of its Run, unless something outside the Run holds them), and a table that tags entries with the Run that made them could drop a Run's entries itself.
 
