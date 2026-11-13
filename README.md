@@ -128,7 +128,16 @@ Splitting each measured iteration into GC pauses (from the cell's `gc.log`, ever
 | chunked-weak | 563 | 34 | 528 |
 | chunked-strong | 486 | 20 | 466 |
 
-The three rounds agree within 6 ms on the mutator column. "The rest" includes whatever concurrent GC work (marking, card refinement) costs the compiling thread on a 10-core machine. The chunked layout's win is all in the pauses (110–120 ms per compile, a fourfold to sevenfold cut); its mutator code is no faster than the chained table's, and `chunked-weak`'s is 37 ms slower than `chained-weak`'s. Weakness costs the mutator 33 ms per compile in the chained layout, which allocates an `Entry` per insert either way, and 62 ms in the chunked layout, where the strong table allocates nothing per insert and the weak one a `Ref`. So for `chunked-weak` the remaining cost over a strong table is mostly not GC at all (14 ms of pauses against 62 ms of mutator). `m4-ablation` splits that 62 ms between the box (allocation and indirection) and the weak reference (constructor, queue, drain).
+The three rounds agree within 6 ms on the mutator column. "The rest" includes whatever concurrent GC work (marking, card refinement) costs the compiling thread on a 10-core machine. The chunked layout's win is all in the pauses (110–120 ms per compile, a fourfold to sevenfold cut); its mutator code is no faster than the chained table's, and `chunked-weak`'s is 37 ms slower than `chained-weak`'s. Weakness costs the mutator 33 ms per compile in the chained layout, which allocates an `Entry` per insert either way, and 62 ms in the chunked layout, where the strong table allocates nothing per insert and the weak one a `Ref`. So for `chunked-weak` the remaining cost over a strong table is mostly not GC at all (14 ms of pauses against 62 ms of mutator). `m4-ablation` (3 rounds) splits that 62 ms between the box (allocation and indirection) and the weak reference (constructor, queue, drain).
+
+| table | ms/compile | pauses | the rest |
+|---|--:|--:|--:|
+| chunked-strong | 489 ± 6 | 21 | 468 |
+| chunked-boxed: a strong box holding the element and its hash | 523 ± 7 | 25 | 498 |
+| chunked-weak | 565 ± 7 | 37 | 528 |
+| chunked-weak-lazy: `chunked-weak` without a `ReferenceQueue` | 596 ± 8 | 30 | 566 |
+
+Of the 76 ms between `chunked-strong` and `chunked-weak` in this campaign, a strong box costs 34 (30 of mutator: an allocation per insert and a dependent load per hash match) and making the box a `WeakReference` costs 42 more (30 of mutator, 12 of pauses, from reference discovery and processing). Dropping the queue does not help: `chunked-weak-lazy` is 31 ms slower than `chunked-weak`. It finds dead entries by asking each `Ref` (`refersTo(null)`) as it probes for a free slot, so every insert loads the `Ref` of every occupied slot on its probe sequence, where `chunked-weak` probes only its hash chunks and empties a slot when the queue says so. In a fresh table almost nothing is cleared, so the lazy table pays for that check and gets nothing back. The queue is the cheap part of weakness.
 
 `m4-threads` (2 rounds), ms per compile:
 
@@ -150,6 +159,18 @@ As on the M5, the chunked table's lead is largest at two compiles and shrinks ag
 | chunked-strong | 583 | 476 |
 
 `chunked-weak` is about 9% slower than `chained-weak` with GC pauses removed, in every fork. The JIT recording shows why: profile pollution, as suspected. In a paired fork, the call to `Interner.intern` in `Compile.lookup` sees all four tables, so Graal compiles it as a four-way type switch and inlines each table's `intern` into one compilation unit. The inlining budget runs out inside the largest of the four, `ChunkedWeak.intern`. In the paired fork, `ChunkedWeak.intern`'s calls to `add`, `removeStaleEntries` and `Node$Kind.make` are left as real calls ("budget was too small to inline this callsite"); `Compile.lookup` is 13.8 KB of code. In a separate `chunked-weak` fork the call site sees one type, everything is inlined, and `Compile.lookup` is 25.9 KB. The `chained-weak` path is inlined fully in both. A paired fork therefore compares the tables' GC behaviour fairly but not their mutator code, and the separate forks are the measurement for time per compile.
+
+`m4-tenure` (3 rounds) runs the fresh tables under a small young generation: 2 GB heap, `-Xmn256m`, 4 MB regions. Young GCs come every few hundred milliseconds, G1 lowers the tenuring threshold to 1 or 2, and chunks tenure within a compile.
+
+| table | ms/compile | Δ against chained-weak | pauses | the rest |
+|---|--:|--:|--:|--:|
+| chained-weak | 721 ± 5 | | 213 | 508 |
+| chunked-weak | 741 ± 5 | +2.8% | 189 | 552 |
+| chunked-weak-rejuv | 685 ± 5 | −5.0% | 136 | 549 |
+| chunked-weak-lazy | 749 ± 5 | +3.9% | 183 | 567 |
+| chunked-strong | 634 ± 4 | −12.1% | 130 | 504 |
+
+Here the chunked weak table loses its lead: once its chunks are old, inserts into them dirty cards as inserts into the chained table's humongous array do, and its pauses (189 ms) are close to the chained table's (213). What is left is its mutator cost, 44 ms more than chained. Rejuvenation, copying the most-written chunks after each GC so they stay young, takes the pauses down to the strong table's level (136 against 130) and makes the chunked weak table 5% faster than the chained one. The strong table still wins by 12%, almost all of it outside the pauses.
 
 ### Scalability on the M5 Pro
 
