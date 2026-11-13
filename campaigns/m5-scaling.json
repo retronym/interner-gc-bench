@@ -1,0 +1,59 @@
+{
+  "name": "m5-scaling",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 2,
+  "gcLog": true,
+  "loadgate": {
+    "maxCores": 1.5,
+    "quietSecs": 30
+  },
+  "corpora": {
+    "full": "-wi 6 -i 10 -prof gc"
+  },
+  "variants": {
+    "cw-t01": "",
+    "kw-t01": "",
+    "cw-t02": "",
+    "kw-t02": "",
+    "cw-t04": "",
+    "kw-t04": "",
+    "cw-t08": "",
+    "kw-t08": "",
+    "cw-t12": "",
+    "kw-t12": "",
+    "cw-t16": "",
+    "kw-t16": ""
+  },
+  "variantJmhArgs": {
+    "cw-t01": "-p table=chained-weak -t 1",
+    "kw-t01": "-p table=chunked-weak -t 1",
+    "cw-t02": "-p table=chained-weak -t 2",
+    "kw-t02": "-p table=chunked-weak -t 2",
+    "cw-t04": "-p table=chained-weak -t 4",
+    "kw-t04": "-p table=chunked-weak -t 4",
+    "cw-t08": "-p table=chained-weak -t 8",
+    "kw-t08": "-p table=chunked-weak -t 8",
+    "cw-t12": "-p table=chained-weak -t 12",
+    "kw-t12": "-p table=chunked-weak -t 12",
+    "cw-t16": "-p table=chained-weak -t 16",
+    "kw-t16": "-p table=chunked-weak -t 16"
+  },
+  "description": [
+    "Scalability: 1 to 16 concurrent compiles in one JVM (each its own table), G1, a fixed 8 GB heap, Graal 25.4.4, on the M5 Pro laptop (6 P + 12 E cores). Hypothesis: at N=1 spare cores absorb G1's extra work (card scanning, copying, concurrent refinement), masking the chained table's cost; as N approaches the core count that work competes with the mutators, and `chained-weak` falls behind `chunked-weak`. Score is time per compile; throughput is N / score."
+  ],
+  "variantDescriptions": {
+    "cw-t01": "1 concurrent compiles, each with its own `chained-weak` table",
+    "kw-t01": "1 concurrent compiles, each with its own `chunked-weak` table",
+    "cw-t02": "2 concurrent compiles, each with its own `chained-weak` table",
+    "kw-t02": "2 concurrent compiles, each with its own `chunked-weak` table",
+    "cw-t04": "4 concurrent compiles, each with its own `chained-weak` table",
+    "kw-t04": "4 concurrent compiles, each with its own `chunked-weak` table",
+    "cw-t08": "8 concurrent compiles, each with its own `chained-weak` table",
+    "kw-t08": "8 concurrent compiles, each with its own `chunked-weak` table",
+    "cw-t12": "12 concurrent compiles, each with its own `chained-weak` table",
+    "kw-t12": "12 concurrent compiles, each with its own `chunked-weak` table",
+    "cw-t16": "16 concurrent compiles, each with its own `chained-weak` table",
+    "kw-t16": "16 concurrent compiles, each with its own `chunked-weak` table"
+  }
+}
