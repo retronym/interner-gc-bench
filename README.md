@@ -249,7 +249,18 @@ With the salt, `Driver` (persistent, same settings, which prints the table's siz
 | `chained-weak` entries | 1.5M | 6.1M | 6.4M | 9.5M | 11.8M | 14.1M | 4.0M |
 | ms | 655 | 707 | 1,134 | 1,021 | 1,054 | 968 | 3,708 |
 
-A fresh table stays at 1.5M entries and about 620 ms. The persistent one still grows: a compile adds about 1.5M entries whose elements tenure before it ends, so only old-generation marking can clear them, and the cycles clear a fraction. With the initiating occupancy at 10% (32 cycles in 30 compiles) each remark clears between 45K and 850K references and drops almost none, yet the table still gains about 0.75M entries per compile until a Full GC. Under Parallel GC, which has no concurrent cycles, it gains the full 1.5M. Why each G1 cycle misses most of the dead entries is open (elements and references promoted during marking are above TAMS and so implicitly live for that cycle; with marking this frequent that may be most of them). Campaign `m5-persistent-salted` remeasures the tables with the fix.
+A fresh table stays at 1.5M entries and about 620 ms. The persistent one still grows: a compile adds about 1.5M entries whose elements tenure before it ends, so only old-generation marking can clear them, and the cycles clear a fraction. With the initiating occupancy at 10% (32 cycles in 30 compiles) each remark clears between 45K and 850K references and drops almost none, yet the table still gains about 0.75M entries per compile until a Full GC. Under Parallel GC, which has no concurrent cycles, it gains the full 1.5M. Why each G1 cycle misses most of the dead entries is open (elements and references promoted during marking are above TAMS and so implicitly live for that cycle; with marking this frequent that may be most of them). Campaign `m5-persistent-salted` remeasures the tables with the fix (M5 Pro, 2 forks × 20 iterations per table, a load gate at 2.5 cores; the laptop was busy and 20 attempts were voided, and the fresh tables' two rounds differ by 140 ms, so read these to ±10%):
+
+| table | persistent | ms/compile | pauses | the rest | Full GCs (2 forks) |
+|---|---|--:|--:|--:|--:|
+| chained-weak | no | 737 | 152 | 585 | 0 |
+| chunked-weak | no | 742 | 133 | 609 | 0 |
+| chained-weak | yes | 1,316 | 344 | 972 | 4 |
+| chunked-weak | yes | 1,458 | 364 | 1,094 | 3 |
+| chunked-weak-rejuv | yes | 1,228 | 317 | 911 | 5 |
+| chunked-weak-lazy | yes | 1,056 | 346 | 710 | 4 |
+
+Persistence still costs 1.4 to 2 times a fresh table, about half in pauses and half in the mutator, which now walks a table of up to 15M entries, most of them dead. Here the queue-less table is the best of the weak ones, the reverse of the fresh M4 result: it reuses a cleared slot on the probe sequence as soon as its referent is cleared, without waiting for the queue to be drained, and in a persistent table most probed slots are cleared. Every persistent fork still needs Full GCs to bring the table back down.
 
 This is the case for clearing by compile rather than by GC: a resident compiler knows when a compile's types die (at the end of its Run, unless something outside the Run holds them), and a table that tags entries with the Run that made them could drop a Run's entries itself.
 
