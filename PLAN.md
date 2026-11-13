@@ -45,12 +45,12 @@ DONE
 - `chunked-weak-rejuv` (copy written element chunks after each collection) and a persistent mode (one table across compiles), with a WhiteBox test; probed at `-Xmn256m` (README, "Keeping chunks young").
 - GC logs written with `::filecount=0`; `GcLog` refuses rotated logs.
 - Compile for release 21: the testbed worker's Maven runs on JDK 21.
-- M4 campaigns (separate, paired, threads) and `m5-scaling`, in the README. The paired fork's `chunked-weak` slowdown is profile pollution: the four-way `Interner.intern` site exhausts Graal's inlining budget inside `ChunkedWeak.intern` (JIT recording).
+- M4 campaigns (separate, paired, threads), `m5-scaling` and `m5-scaling-heap`, in the README. The paired fork's `chunked-weak` slowdown is profile pollution: the four-way `Interner.intern` site exhausts Graal's inlining budget inside `ChunkedWeak.intern` (JIT recording).
 
 TODO
 - Persistent tables at a small young generation: dead entries stay in the table until old-generation marking frees their elements, so the table grows and scans tens of millions of cards. Worth a look: clearing entries by compile (an epoch per entry) instead of waiting for reference processing.
 - An `m4-tenure` campaign (separate forks, `-Xmn256m`, fresh and persistent, chunked-weak against -rejuv) once the m4 campaigns have run.
-- `m5-scaling-heap`: the scaling campaign with 1.5 GB of heap per compile (job 530).
+- Add `chunked-weak-rejuv` to `m5-scaling-heap`: at 1.5 GB per compile chunks tenure, and the chunked lead stays at 5–17% for every N.
 - Void and rerun the `smoke-whitebox` cells (their logs were overwritten by the paired fork that JMH's pattern also matched), or drop that campaign in favour of `Driver`.
 
 Future work

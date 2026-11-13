@@ -157,6 +157,19 @@ The rounds agree within 2%, except `chunked-weak` at N=12 (2,763 and 2,430 ms).
 
 The chunked table's lead grows with concurrency, from 10% at N=1 to 32% at N=16, where `chained-weak` throughput has started to fall (3.8 compiles/s against 4.1 at N=8) and `chunked-weak` still rises (5.0). It does not grow steadily, though (26% at N=2, 14% at N=12), and the larger effect is that neither table scales: 16 compiles give 2.3–2.9 times the throughput of one. With the heap fixed at 8 GB, N compiles allocate N times as fast into the same young generation and keep N times the live data, so GC time grows faster than N, to about 60% of the wall time at N=16 for both tables. That heap pressure is common to both and dilutes the difference that card scanning makes. A campaign with the heap scaled with N would separate the two.
 
+`m5-scaling-heap` scales the heap with N instead: 1.5 GB per compile (1.5 GB at N=1, 24 GB at N=16), with G1 regions pinned at 4 MB so the humongous threshold stays at 2 MB. Same machine, JVM and iterations; GC time is summed over the 10 measured iterations, averaged over the two rounds.
+
+| N | chained-weak ms/compile | chunked-weak ms/compile | chained / chunked | chained compiles/s | chunked compiles/s | chained GC ms | chunked GC ms |
+|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | 681 | 626 | 1.09 | 1.5 | 1.6 | 1,790 | 1,094 |
+| 2 | 874 | 797 | 1.10 | 2.3 | 2.5 | 3,325 | 2,180 |
+| 4 | 1,263 | 1,075 | 1.17 | 3.2 | 3.7 | 6,275 | 4,022 |
+| 8 | 1,708 | 1,604 | 1.06 | 4.7 | 5.0 | 8,824 | 7,456 |
+| 12 | 2,196 | 1,970 | 1.11 | 5.5 | 6.1 | 11,759 | 10,199 |
+| 16 | 2,794 | 2,655 | 1.05 | 5.7 | 6.0 | 15,271 | 14,785 |
+
+With each compile's heap share fixed, both tables scale further (6.0 compiles/s at N=16 rather than 5.0), but the chunked table's lead does not grow with N: it stays between 5% and 17%, and is smallest at N=16. The hypothesis that spare cores hide the chained table's GC cost at small N is not supported; the growing gap in `m5-scaling` came with heap pressure, not core contention. The GC times say why the gap shrinks: the chained table's extra GC time is about 700 ms at N=1 and 500 ms at N=16, while the chunked table's GC time grows almost as fast as N. At 1.5 GB per compile the young generation is small, compiles see several GCs each, and chunks live long enough to be promoted, after which they dirty cards like the chained array does (as in the `-Xmn256m` probe, "Keeping chunks young"). Rejuvenation should restore the gap here.
+
 ## Keeping chunks young
 
 Chunking keeps the table out of humongous regions, but a chunk is still an ordinary object that tenures once it has lived through enough young GCs, and from then on inserts into it are old-to-young stores again. At an 8 GB heap this does not happen within a compile: G1 keeps the tenuring threshold at 15 and a compile sees one or two young GCs. It does happen when young GCs are frequent, because G1 then lowers the threshold to 1 or 2, and when a table outlives many compiles, as in a resident compiler (`persistent=true`: one table and hot pool per thread across compiles; weak tables only).
