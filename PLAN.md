@@ -24,7 +24,7 @@ All of these are parameters (JMH `@Param` and a plain `WorkloadConfig`), the gen
 
 **Paired runs cancel JIT variance.** Besides one fork per structure, a paired benchmark alternates the structure by iteration in one fork using perflab's `Variants`/`IterationLog`, reporting `paired.<v>.delta%` and the GC-free deltas.
 
-**Whitebox through the HotSpot WhiteBox API.** `wb.jar` is built from `test/lib/jdk/test/whitebox` in the OpenJDK checkout (at the `jdk-25` tag, to match the VM's registered natives) and put on the boot classpath of a separate surefire execution. The mechanism suite forces young GCs with `wb.youngGC()` and asserts, per table at a realistic size: the chained bucket array is humongous (`g1IsHumongous`) and old (`isObjectInOldGen`) right after allocation; no chunked array is ever humongous, and a freshly rebuilt chunk is young. It also asserts that after N inserts and a young GC, the chunked table's chunks are promoted together rather than pinned old from birth. G1 logs (`-Xlog:gc+phases=debug,gc+heap=debug`) are parsed for scanned cards, Merge/Scan Heap Roots, Object Copy, Reference Processing and humongous region counts; JFR (`jdk.GCPhasePause`, `jdk.PromoteObjectInNewPLAB`/`OutsidePLAB`) gives the same from a second source.
+**Whitebox through the HotSpot WhiteBox API.** The Java side of the API is vendored from OpenJDK's `test/lib` at `jdk-25+26` as a GPLv2 module (`wb.jar`) and put on the boot classpath of a separate surefire execution. The mechanism suite forces young GCs with `wb.youngGC()` and asserts, per table at a realistic size: the chained bucket array is humongous (`g1IsHumongous`) and old (`isObjectInOldGen`) right after allocation; no chunked array is ever humongous, and a freshly rebuilt chunk is young. It also asserts that after N inserts and a young GC, the chunked table's chunks are promoted together rather than pinned old from birth. G1 logs (`-Xlog:gc+phases=debug,gc+heap=debug`) are parsed for scanned cards, Merge/Scan Heap Roots, Object Copy, Reference Processing and humongous region counts; JFR (`jdk.GCPhasePause`, `jdk.PromoteObjectInNewPLAB`/`OutsidePLAB`) gives the same from a second source.
 
 **Build and runs.** Maven with the wrapper, JDK 25 Temurin to build, Temurin 25 and Graal 25.4.4 to run. The repo is a perflab project (`perflab.toml`, campaign specs for the separate-fork, paired and threads comparisons, with `gcLog`), so the same campaigns can run on the M4 testbed later. Local smoke runs only until Jason says go.
 
@@ -32,22 +32,24 @@ All of these are parameters (JMH `@Param` and a plain `WorkloadConfig`), the gen
 
 DONE
 - Read #117 (`WeakInterner.scala`), the hash-consing write-up and census, and perflab's sample project.
+- Plan reviewed (Jason: vendor the WhiteBox API rather than build it from a checkout).
+- Maven skeleton (wrapper, JDK 25, JMH, JUnit 5, perflab-jmh), with the vendored WhiteBox API as a GPLv2 module.
+- `Interner`/`Shape` and the five tables, with correctness tests.
+- Workload generator, `WorkloadConfig`, `Census`; defaults tuned against the dotc census; a unit of the workload is a (unit, phase) scope, as in the census, so a few hundred lookups.
+- WhiteBox heap-placement tests and a G1-log mechanism test, run as a separate surefire execution; both checked to fail with humongous chunks.
+- `GcLog` and `JfrSummary`, `Driver`.
+- `CompileBenchmark` (threads via `-t`), `PairedCompileBenchmark`; perflab.toml; smoke and m4 campaigns.
 
 TODO
-1. Maven skeleton (wrapper, JDK 25, JMH, JUnit 5, perflab-jmh dependency), `perflab.toml`.
-2. `Interner`/`Shape` interface and the five tables, with correctness tests: collisions (forced equal hashes), growth across chunk boundaries, rebuild at same size, dropped collected elements (via `System.gc()` + `WeakReference` checks), identity of results, `clear()`.
-3. Workload generator, `WorkloadConfig`, and the `Census` mode; tune defaults until the census matches the targets; tests that pin the census within tolerances at a small scale.
-4. Build `wb.jar`; WhiteBox mechanism suite as a separate surefire execution.
-5. JMH benchmarks: `CompileBenchmark` (single-shot, one fork per structure, `@Threads` 1/2/4 variants) and `PairedCompileBenchmark`.
-6. G1 log parser (small Java main) and a JFR summary; campaign specs.
-7. Local smoke run of each mode (separate forks, paired, threads, whitebox) at reduced scale; summarise in README.
+- Local smoke runs of each campaign (queued behind other jobs on the laptop); summarise in README.
 
 Future work
-- M4 testbed campaigns (needs Jason's go-ahead).
-- Variants of interest not in scope now: a nursery-plus-sealed-segments table (write-up PLAN §5), other collectors (Parallel, ZGC) as a control where the humongous effect should vanish, a smaller heap (2 GB) to sharpen the age distribution.
+- M4 testbed campaigns (`campaigns/m4-*.json`, needs Jason's go-ahead).
+- A nursery-plus-sealed-segments table (write-up PLAN §5); other collectors (Parallel, ZGC) as a control where the humongous effect should vanish; a smaller heap (2 GB) to sharpen the age distribution.
+- A fixed `-Xmn` variant, to give the 1–3 young GCs per compile that dotc sees instead of the ~1 this workload sees at 8 GB.
 
-## Open questions for review
+## Open questions (answered by default)
 
-- Is "fresh interner per compile" the right model, or should some benchmarks keep one table across compiles, as a long-lived daemon with reused uniques would?
-- Default scale: a full-size compile (~3.7 GB allocated) makes each single-shot op a few seconds. Fine for the testbed; smoke runs would use `scale=0.25`. Acceptable?
-- Should `Scoped` be in the default JMH set or only in the whitebox comparison?
+- A fresh interner per compile, as dotc's `Run`; no benchmark keeps one across compiles.
+- A full-size compile turned out to take under a second, so smoke runs use full size with fewer iterations; `size=quarter` etc. remain.
+- `scoped` is in the whitebox comparison only, not the default JMH set.

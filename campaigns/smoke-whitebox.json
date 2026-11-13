@@ -1,0 +1,34 @@
+{
+  "name": "smoke-whitebox",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 1,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 4 -i 12 -t 1"
+  },
+  "variants": {
+    "chained-weak": "-Xlog:gc*=debug:file=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chained-weak.gc.log -XX:StartFlightRecording:filename=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chained-weak.jfr,settings=default,jdk.PromoteObjectInNewPLAB#enabled=true,jdk.PromoteObjectOutsidePLAB#enabled=true",
+    "chained-strong": "-Xlog:gc*=debug:file=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chained-strong.gc.log -XX:StartFlightRecording:filename=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chained-strong.jfr,settings=default,jdk.PromoteObjectInNewPLAB#enabled=true,jdk.PromoteObjectOutsidePLAB#enabled=true",
+    "chunked-weak": "-Xlog:gc*=debug:file=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chunked-weak.gc.log -XX:StartFlightRecording:filename=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chunked-weak.jfr,settings=default,jdk.PromoteObjectInNewPLAB#enabled=true,jdk.PromoteObjectOutsidePLAB#enabled=true",
+    "chunked-strong": "-Xlog:gc*=debug:file=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chunked-strong.gc.log -XX:StartFlightRecording:filename=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/chunked-strong.jfr,settings=default,jdk.PromoteObjectInNewPLAB#enabled=true,jdk.PromoteObjectOutsidePLAB#enabled=true",
+    "scoped": "-Xlog:gc*=debug:file=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/scoped.gc.log -XX:StartFlightRecording:filename=/Users/jzaugg-virtus/code/retronym/interner-gc-bench/out/whitebox/scoped.jfr,settings=default,jdk.PromoteObjectInNewPLAB#enabled=true,jdk.PromoteObjectOutsidePLAB#enabled=true"
+  },
+  "variantJmhArgs": {
+    "chained-weak": "-p table=chained-weak",
+    "chained-strong": "-p table=chained-strong",
+    "chunked-weak": "-p table=chunked-weak",
+    "chunked-strong": "-p table=chunked-strong",
+    "scoped": "-p table=scoped"
+  },
+  "description": [
+    "Whitebox: one fork per table with G1's debug log and JFR promotion events, written to out/whitebox/<table>.{gc.log,jfr} (local paths; summarise with `interner.gc.GcLog` and `interner.gc.JfrSummary`). Its timings are perturbed by the logging and recording; read them from smoke-separate instead."
+  ],
+  "variantDescriptions": {
+    "chained-weak": "`chained-weak` under `-Xlog:gc*=debug` and JFR",
+    "chained-strong": "`chained-strong` under `-Xlog:gc*=debug` and JFR",
+    "chunked-weak": "`chunked-weak` under `-Xlog:gc*=debug` and JFR",
+    "chunked-strong": "`chunked-strong` under `-Xlog:gc*=debug` and JFR",
+    "scoped": "`scoped` under `-Xlog:gc*=debug` and JFR"
+  }
+}
