@@ -215,6 +215,32 @@ With frequent young GCs and a table per compile, plain chunks tenure and scan 3.
 
 A persistent table is a different problem, and rejuvenation makes it worse. With a threshold of 1 or 2, each compile's own types tenure before the compile ends. When the compile is over they are dead, but a weak table learns that only when old-generation marking frees them, so the table holds them, stays large and old, and grows. Every layout then scans tens of millions of cards. Copying every chunk of such a table at every young GC (`-rejuv-all`) fills a 256 MB eden by itself: 3,155 pauses. The write threshold contains that, but it does not help. What a resident compiler needs here is for dead entries to leave the table sooner, not younger chunks.
 
+### Persistent tables, measured
+
+Campaign `m5-persistent` (M5 Pro, Graal 25.4.4, 2 GB heap, `-Xmn256m`, 4 MB regions, 2 forks × 20 iterations per table; pauses summed from `gc.log` over the measured iterations), ms per compile:
+
+| table | persistent | score | GC pauses | the rest |
+|---|---|--:|--:|--:|
+| chained-weak | no | 620 | 139 | 481 |
+| chunked-weak | no | 635 | 122 | 513 |
+| chained-weak | yes | 1,885 | 272 | 1,613 |
+| chunked-weak | yes | 1,756 | 317 | 1,439 |
+| chunked-weak-rejuv | yes | 1,489 | 276 | 1,213 |
+| chunked-weak-lazy | yes | 1,492 | 285 | 1,207 |
+
+Keeping the table triples the cost of a compile, and most of that is outside the pauses. Within a fork the time per compile is a sawtooth: it climbs from about 700 ms to over 2,000 ms and falls back after a Full GC (1,647 MB → 792 MB in the heap), which every persistent fork had and no fresh one did. Here, unlike the `Driver` probe above, rejuvenation and the queue-less table each save about 270 ms per compile, but the error over 20 sawtoothed iterations is wide (±300 ms in JMH's terms) and both are still more than twice the fresh tables.
+
+`Driver` (which now prints the table's size after each compile) shows what grows. `chained-weak`, persistent, same settings:
+
+| compile | 0 | 3 | 6 | 9 | 12 | 15 | 18 | 21 (after a Full GC) |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|
+| entries | 1.5M | 6.1M | 7.2M | 9.1M | 12.5M | 13.4M | 16.2M | 3.1M |
+| ms | 653 | 970 | 1,670 | 1,781 | 1,624 | 2,228 | 2,298 | 780 |
+
+A compile adds about 1.5M entries and nearly all of them stay. `-Xlog:gc+phases+ref` shows why: each concurrent cycle's remark discovers 130–200K `WeakReference`s of the table's millions, drops most (referent still marked) and clears about 10K. Under Parallel GC the table grows the same way, 1.5M entries per compile, until a Full GC brings it back to one compile's worth. So the elements a compile tenured are cleared only by a full collection of the old generation; G1's concurrent cycles hardly help, for a reason not yet pinned down. The mutator's cost then tracks the table's size: a table of 10M+ entries rebuilds, probes and misses cache on dead entries.
+
+This is the case for clearing by compile rather than by GC: a resident compiler knows when a compile's types die (at the end of its Run, unless something outside the Run holds them), and a table that tags entries with the Run that made them could drop a Run's entries itself, or demote them to weak only then.
+
 ## Building
 
 JDK 25 to run the tests (`JAVA_HOME=~/.sdkman/candidates/java/25.0.4-tem ./mvnw install`); the code is compiled for release 21, so a JDK 21 build tool can package the benchmarks, which fork the JDK given by `-jvm`. The benchmarks depend on `perflab-jmh`, which is not yet published: `mise run install` in a jvm-perf-lab checkout puts it in `~/.m2`.
