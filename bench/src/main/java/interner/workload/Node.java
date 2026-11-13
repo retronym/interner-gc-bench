@@ -44,9 +44,13 @@ public final class Node {
         return h ^ (h >>> 16);
     }
 
-    /** The {@link Shape} of one kind of node. One instance per kind, so a call through `Shape` is monomorphic. */
+    /**
+     * The {@link Shape} of one kind of node. All kinds share this class, so a call through `Shape` is monomorphic.
+     * `made` counts the nodes it made, which tells a caller whether a lookup missed.
+     */
     public static final class Kind implements Shape<Node> {
         public final byte kind;
+        public long made;
 
         private Kind(byte kind) { this.kind = kind; }
 
@@ -56,8 +60,15 @@ public final class Node {
         }
 
         @Override
-        public Node make(int hash, Object a, Object b, Object c) { return new Node(hash, kind, a, b, c); }
+        public Node make(int hash, Object a, Object b, Object c) {
+            made++;
+            return new Node(hash, kind, a, b, c);
+        }
     }
 
-    public static final Kind[] KINDS = {new Kind(REF), new Kind(LIST), new Kind(APPLIED), new Kind(REFINED)};
+    /** A fresh set of kinds, one per compile (and thread), so their `made` counters are private to it. */
+    public static Kind[] kinds() { return new Kind[] {new Kind(REF), new Kind(LIST), new Kind(APPLIED), new Kind(REFINED)}; }
+
+    /** Shared kinds, for tests. */
+    public static final Kind[] KINDS = kinds();
 }

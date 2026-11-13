@@ -12,9 +12,10 @@ public final class Scoped<K> implements Interner<K> {
     private final int initialCapacity;
     private ChunkedStrong<K> table;
 
+    /** `initialCapacity` is capped at 1K slots: the table is made afresh for every unit. */
     public Scoped(int initialCapacity) {
-        this.initialCapacity = initialCapacity;
-        this.table = new ChunkedStrong<>(initialCapacity);
+        this.initialCapacity = Math.min(initialCapacity, 1024);
+        this.table = new ChunkedStrong<>(this.initialCapacity);
     }
 
     @Override
