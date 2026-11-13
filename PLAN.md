@@ -49,7 +49,7 @@ DONE
 
 TODO
 - Persistent tables at a small young generation: dead entries stay in the table until old-generation marking frees their elements, so the table grows and scans tens of millions of cards. Worth a look: clearing entries by compile (an epoch per entry) instead of waiting for reference processing.
-- An `m4-tenure` campaign (separate forks, `-Xmn256m`, fresh and persistent, chunked-weak against -rejuv) once the m4 campaigns have run.
+- `m4-tenure` (fresh tables, queued) and `m5-persistent` (persistent tables, queued); read both into the README.
 - Void and rerun the `smoke-whitebox` cells (their logs were overwritten by the paired fork that JMH's pattern also matched), or drop that campaign in favour of `Driver`.
 
 Future work
