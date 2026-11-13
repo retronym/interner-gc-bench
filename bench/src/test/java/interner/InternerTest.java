@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class InternerTest {
     static final List<String> ALL = Interner.NAMES;
-    static final List<String> WEAK = List.of("chained-weak", "chunked-weak");
+    static final List<String> WEAK = List.of("chained-weak", "chunked-weak", "chunked-weak-rejuv");
     static final Shape<Node> REF = Node.KINDS[Node.REF];
     static final Shape<Node> LIST = Node.KINDS[Node.LIST];
 

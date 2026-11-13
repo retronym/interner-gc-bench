@@ -17,6 +17,11 @@ import java.util.concurrent.TimeUnit;
  * <p>Each thread runs its own compiles (its own seed, its own table), as concurrent compilers in one JVM would; run
  * with `-t 2` or `-t 4` to see how the time per compile grows with concurrency. `-prof gc` gives allocation and GC
  * counts per compile.
+ *
+ * <p>With `persistent=true` each thread keeps one table (and its hot pool) for the whole fork, as a resident compiler
+ * (sbt, Bloop) keeps its interners across compiles. Each compile's own types die with it, so only weak tables can
+ * persist. A persistent table lives through many young GCs, which is when its chunks tenure unless rejuvenated
+ * (`chunked-weak-rejuv`); a smaller young generation (`-Xmn`) gives the same within a compile.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Mode.SingleShotTime)
@@ -35,18 +40,31 @@ public class CompileBenchmark {
     @Param({""})
     public String workload;
 
+    /** Keep one table per thread across compiles (weak tables only). */
+    @Param({"false"})
+    public boolean persistent;
+
     private WorkloadConfig cfg;
     private long seed;
+    private Interner<Node> kept;
+    private Node[] hot;
 
     @Setup(Level.Trial)
     public void setup(ThreadParams tp) {
         cfg = Sizes.config(size, workload);
         seed = cfg.seed + tp.getThreadIndex();
+        if (persistent && !Interner.isWeak(table)) {
+            throw new IllegalArgumentException(table + " cannot persist: a strong table would keep every compile's types");
+        }
     }
 
     @Benchmark
     public long compile() {
-        Interner<Node> t = Interner.create(table, cfg.initialCapacity);
-        return new Compile(cfg, t, seed, null).run();
+        if (!persistent) return new Compile(cfg, Interner.create(table, cfg.initialCapacity), seed, null).run();
+        if (kept == null) kept = Interner.create(table, cfg.initialCapacity);
+        Compile c = new Compile(cfg, kept, seed, null, hot);
+        long sum = c.run();
+        hot = c.hot();
+        return sum;
     }
 }

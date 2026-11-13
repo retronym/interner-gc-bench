@@ -14,7 +14,8 @@
   </modules>
 
   <properties>
-    <maven.compiler.release>25</maven.compiler.release>
+    <!-- 21 so that a build tool on JDK 21 (as on the testbed worker) can build it; benchmarks fork the JDK given by -jvm -->
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <jmh.version>1.37</jmh.version>
     <junit.version>5.11.4</junit.version>

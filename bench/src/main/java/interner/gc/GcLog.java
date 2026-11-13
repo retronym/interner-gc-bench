@@ -12,8 +12,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Totals over the young and mixed pauses of a G1 log written with `-Xlog:gc*=debug` (or at least
- * `gc,gc+heap,gc+phases=debug,gc+phases+ref=debug`). Full collections (`System.gc()` between compiles) are left out.
+ * Totals over the young and mixed pauses of a G1 log written with `-Xlog:gc*=debug:file=<log>::filecount=0` (or at
+ * least `gc,gc+heap,gc+phases=debug,gc+phases+ref=debug`). Full collections (`System.gc()` between compiles) are left
+ * out. Without `filecount=0` HotSpot rotates the file at 20 MB and drops the oldest pauses, so a log with rotated
+ * siblings (`<log>.0`) is refused.
  *
  * <p>The figures that show the interner's mechanism: scanned cards and Scan Heap Roots time (old-to-young pointers,
  * such as a humongous bucket array pointing at young entries), Object Copy time and copied bytes (survivors, such as
@@ -62,6 +64,10 @@ public final class GcLog {
     private static final Pattern WEAK = Pattern.compile("^WeakReference Discovered: (\\d+)");
 
     public static Summary parse(Path log) throws IOException {
+        Path rotated = log.resolveSibling(log.getFileName() + ".0");
+        if (Files.exists(rotated)) {
+            throw new IOException(log + " was rotated (" + rotated + " exists): log with ::filecount=0 to keep every pause");
+        }
         // first pass: which GC ids are young or mixed pauses
         Set<String> young = new HashSet<>();
         Map<String, Double> pauseMs = new HashMap<>();

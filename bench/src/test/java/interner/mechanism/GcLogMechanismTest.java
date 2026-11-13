@@ -25,12 +25,15 @@ class GcLogMechanismTest {
     @BeforeAll
     static void runChildren() throws Exception {
         Path dir = Files.createDirectories(Path.of("target", "mechanism"));
+        try (var old = Files.list(dir)) {
+            for (Path f : old.toList()) Files.delete(f);
+        }
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         String cp = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"));
         for (String table : List.of("chained-weak", "chained-strong", "chunked-weak", "chunked-strong")) {
             Path log = dir.resolve(table + ".gc.log");
             List<String> cmd = new ArrayList<>(List.of(java, "-XX:+UseG1GC", "-Xms2g", "-Xmx2g", "-Xmn512m",
-                    "-XX:G1HeapRegionSize=4m", "-Xlog:gc*=debug:file=" + log, "-cp", cp,
+                    "-XX:G1HeapRegionSize=4m", "-Xlog:gc*=debug:file=" + log + "::filecount=0", "-cp", cp,
                     Driver.class.getName(), table, "4", "scale=0.25"));
             Process p = new ProcessBuilder(cmd).redirectErrorStream(true)
                     .redirectOutput(dir.resolve(table + ".out").toFile()).start();

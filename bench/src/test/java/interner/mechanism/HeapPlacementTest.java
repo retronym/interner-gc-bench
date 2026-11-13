@@ -98,6 +98,38 @@ class HeapPlacementTest {
         for (Object a : t.backingArrays()) assertFalse(wb.isObjectInOldGen(a), "a rebuild allocates young chunks");
     }
 
+    @Test
+    void rejuvenatingChunksStayYoungAcrossCollections() {
+        ChunkedWeak<Node> plain = new ChunkedWeak<>(16), rejuv = new ChunkedWeak<>(16, 1, 0);
+        List<Node> keep = fill(plain, 100_000);
+        keep.addAll(fill(rejuv, 100_000));
+        for (int i = 0; i < 16; i++) {
+            wb.youngGC();
+            // a few inserts between collections, far from the next growth: the rejuvenating table copies its chunks
+            keep.addAll(fill(plain, 10));
+            keep.addAll(fill(rejuv, 10));
+        }
+        assertEquals(plain.capacity(), rejuv.capacity());
+        for (Object a : plain.backingArrays()) assertTrue(wb.isObjectInOldGen(a), "plain chunks tenure");
+        for (Object a : rejuv.backingArrays()) {
+            // element chunks and their spine are kept young; int[] hash chunks hold no references and may tenure
+            if (a.getClass() == Object[].class || a.getClass() == Object[][].class) {
+                assertFalse(wb.isObjectInOldGen(a), "rejuvenated element chunks are young");
+            }
+        }
+        assertEquals(16L * 4, rejuv.rejuvenatedChunks(), "4 chunks copied after each of 16 collections");
+
+        // with a write threshold, chunks are copied after the collection that follows the fill (25K stores each), and
+        // not after the later ones, with 10 stores between collections
+        ChunkedWeak<Node> picky = new ChunkedWeak<>(16, 1, 1_000);
+        keep.addAll(fill(picky, 100_000));
+        for (int i = 0; i < 16; i++) {
+            wb.youngGC();
+            keep.addAll(fill(picky, 10));
+        }
+        assertEquals(4, picky.rejuvenatedChunks());
+    }
+
     static int capacity(Interner<Node> t) {
         if (t instanceof ChunkedWeak<Node> w) return w.capacity();
         return ((ChunkedStrong<Node>) t).capacity();

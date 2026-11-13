@@ -42,7 +42,13 @@ DONE
 
 - Local smoke runs (separate, paired, threads; whitebox via `Driver`), summarised in README.
 
+- `chunked-weak-rejuv` (copy written element chunks after each collection) and a persistent mode (one table across compiles), with a WhiteBox test; probed at `-Xmn256m` (README, "Keeping chunks young").
+- GC logs written with `::filecount=0`; `GcLog` refuses rotated logs.
+- Compile for release 21: the testbed worker's Maven runs on JDK 21.
+
 TODO
+- Persistent tables at a small young generation: dead entries stay in the table until old-generation marking frees their elements, so the table grows and scans tens of millions of cards. Worth a look: clearing entries by compile (an epoch per entry) instead of waiting for reference processing.
+- An `m4-tenure` campaign (separate forks, `-Xmn256m`, fresh and persistent, chunked-weak against -rejuv) once the m4 campaigns have run.
 - Explain `chunked-weak`'s slowdown in the paired fork (+24% against `chained-weak`, against a 7% win in separate forks): noise over four cycles, or profile pollution at the megamorphic `Interner.intern` call site? A JIT recording (`"jitRecording": true`) on the paired campaign would show it.
 - Void and rerun the `smoke-whitebox` cells (their logs were overwritten by the paired fork that JMH's pattern also matched), or drop that campaign in favour of `Driver`.
 

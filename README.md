@@ -18,6 +18,7 @@ All implement one `Interner<K>` interface. A lookup passes the hash and the part
 | `chained-strong` | the same chains with strong entries |
 | `chunked-weak` | a port of `WeakInterner` from retronym/scala3#117: linear probing over parallel `int[]` hash and `Object[]` element arrays split into 64K-slot chunks (256 KB each), probes crossing chunks; elements held by a slim `WeakReference` carrying the hash; collected slots become tombstones; growth at 0.5 load (live plus tombstones) rebuilds into fresh chunks, at double size if live fills a quarter, else at the same size |
 | `chunked-strong` | the same chunks holding elements directly until `clear()` |
+| `chunked-weak-rejuv` | `chunked-weak` that keeps its element chunks young: after a collection (seen as a cleared `WeakReference` canary), it replaces each element chunk that took at least 256 stores since the previous one with a copy; `-rejuv-all` copies every element chunk after every collection. See [Keeping chunks young](#keeping-chunks-young) |
 | `scoped` | a lower bound, not a candidate: a strong table dropped at the end of every unit. It loses every cross-unit hit, and in a compiler it would break the identity of interned types across units |
 
 No chunk is humongous, and every growth allocates its chunks young, so inserts write young-to-young and a young GC has no old array to scan.
@@ -59,7 +60,7 @@ From the mechanism suite's child JVMs (Temurin 25, 2 GB heap, 512 MB young, 4 co
 | chunked-weak | 53 | 0.3 | 1,214 | 558 | 192 | 4.2 | 190,767 | 0 |
 | chunked-strong | 38 | 0.4 | 1,732 | 403 | 165 | 0.4 | 58 | 0 |
 
-`interner.Driver <table> <compiles>` runs compiles outside JMH for logging or JFR; `interner.gc.GcLog <log>...` totals a `-Xlog:gc*=debug` log's young pauses as above; `interner.gc.JfrSummary <jfr>` gives pause phases and survivor/tenured copies by class from a recording with the `jdk.PromoteObject*` events.
+`interner.Driver <table> <compiles>` runs compiles outside JMH for logging or JFR; `interner.gc.GcLog <log>...` totals the young pauses of a log written with `-Xlog:gc*=debug:file=<log>::filecount=0` as above (HotSpot otherwise rotates it at 20 MB and drops the oldest pauses); `interner.gc.JfrSummary <jfr>` gives pause phases and survivor/tenured copies by class from a recording with the `jdk.PromoteObject*` events.
 
 ## Blackbox: the cost
 
@@ -105,9 +106,30 @@ Paired (`smoke-paired`, all four tables in one fork, 16 measured iterations, so 
 
 The `gc.log` of each `smoke-separate`, `smoke-threads` and `smoke-whitebox` cell is not usable. JMH matched `CompileBenchmark` in the old `PairedCompileBenchmark` too, so every cell also ran a second, paired fork that overwrote it (now renamed `CompilePairedBenchmark`). The timings above come from the right fork.
 
+## Keeping chunks young
+
+Chunking keeps the table out of humongous regions, but a chunk is still an ordinary object that tenures once it has lived through enough young GCs, and from then on inserts into it are old-to-young stores again. At an 8 GB heap this does not happen within a compile: G1 keeps the tenuring threshold at 15 and a compile sees one or two young GCs. It does happen when young GCs are frequent, because G1 then lowers the threshold to 1 or 2, and when a table outlives many compiles, as in a resident compiler (`persistent=true`: one table and hot pool per thread across compiles; weak tables only).
+
+`chunked-weak-rejuv` copies an element chunk after a collection if it took enough stores to dirty many of its 512 cards. Hash chunks are `int[]`, which no young GC scans, so they are never copied. Probe with `Driver` (Graal 25.4.4, 2 GB heap, `-Xmn256m`, 10 compiles, mean of compiles 4–10, totals over young pauses):
+
+| table | persistent | ms per compile | pauses | pause ms | scanned cards | copied MB |
+|---|---|--:|--:|--:|--:|--:|
+| chained-weak | no | 744 | 153 | 1,637 | 6,055,248 | 5,668 |
+| chunked-weak | no | 736 | 154 | 1,428 | 3,701,430 | 5,854 |
+| chunked-weak-rejuv | no | 673 | 165 | 1,090 | 455,016 | 6,377 |
+| chunked-weak-rejuv-all | no | 698 | 164 | 1,099 | 454,586 | 6,326 |
+| chained-weak | yes | 1,712 | 153 | 2,092 | 32,036,768 | 5,872 |
+| chunked-weak | yes | 1,613 | 154 | 2,246 | 34,876,914 | 6,476 |
+| chunked-weak-rejuv | yes | 1,664 | 181 | 2,669 | 46,299,977 | 10,305 |
+| chunked-weak-rejuv-all | yes | 6,307 | 3,155 | 32,699 | 453,988,091 | 66,638 |
+
+With frequent young GCs and a table per compile, plain chunks tenure and scan 3.7M cards, most of what the chained table scans. Rejuvenation brings that down eightfold and pause time down by a quarter, for about 9% more copying, and the compile is 9% faster.
+
+A persistent table is a different problem, and rejuvenation makes it worse. With a threshold of 1 or 2, each compile's own types tenure before the compile ends. When the compile is over they are dead, but a weak table learns that only when old-generation marking frees them, so the table holds them, stays large and old, and grows. Every layout then scans tens of millions of cards. Copying every chunk of such a table at every young GC (`-rejuv-all`) fills a 256 MB eden by itself: 3,155 pauses. The write threshold contains that, but it does not help. What a resident compiler needs here is for dead entries to leave the table sooner, not younger chunks.
+
 ## Building
 
-JDK 25 (`JAVA_HOME=~/.sdkman/candidates/java/25.0.4-tem ./mvnw install`). The benchmarks depend on `perflab-jmh`, which is not yet published: `mise run install` in a jvm-perf-lab checkout puts it in `~/.m2`.
+JDK 25 to run the tests (`JAVA_HOME=~/.sdkman/candidates/java/25.0.4-tem ./mvnw install`); the code is compiled for release 21, so a JDK 21 build tool can package the benchmarks, which fork the JDK given by `-jvm`. The benchmarks depend on `perflab-jmh`, which is not yet published: `mise run install` in a jvm-perf-lab checkout puts it in `~/.m2`.
 
 ## Licence
 

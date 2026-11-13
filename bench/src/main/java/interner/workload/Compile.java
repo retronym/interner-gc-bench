@@ -64,6 +64,15 @@ public final class Compile {
     private int pickedUnit, pickedDistance;
 
     public Compile(WorkloadConfig cfg, Interner<Node> table, long seed, Census census) {
+        this(cfg, table, seed, census, null);
+    }
+
+    /**
+     * A compile that shares `hot` (the hot pool of an earlier compile against the same `table`) instead of making its
+     * own, as successive compiles in a resident compiler share the classpath's types. With `hot` null it makes one.
+     */
+    public Compile(WorkloadConfig cfg, Interner<Node> table, long seed, Census census, Node[] hot) {
+        this.hot = hot;
         this.cfg = cfg;
         this.table = table;
         this.census = census;
@@ -83,8 +92,10 @@ public final class Compile {
     public long run() {
         int units = cfg.scaledUnits();
         long budget = cfg.scaledLookups();
-        hot = new Node[cfg.hotNodes];
-        for (int i = 0; i < hot.length; i++) hot[i] = lookup(Node.REF, null, freshSym(), null);
+        if (hot == null) {
+            hot = new Node[cfg.hotNodes];
+            for (int i = 0; i < hot.length; i++) hot[i] = lookup(Node.REF, null, freshSym(), null);
+        }
         if (census != null) census.compileStart(units);
         long checksum = 0;
         for (unit = 0; unit < units; unit++) {
@@ -220,6 +231,9 @@ public final class Compile {
 
     /** Nodes built by miss steps (and the hot pool), whether or not the table already held them. */
     int inserted() { return inserted; }
+
+    /** The hot pool, to share with the next compile against the same table. */
+    public Node[] hot() { return hot; }
 
     /** Nodes the table made, i.e. misses. */
     public long made() {

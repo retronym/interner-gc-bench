@@ -16,6 +16,15 @@ import static interner.Tables.*;
  * <p>Each element is held by a {@link Ref}, a `WeakReference` that also carries the hash. A collected element's slot
  * becomes a tombstone, and the next rebuild drops it. The table rebuilds when live elements plus tombstones would pass
  * half the slots: at double the size if live elements fill a quarter of the table, otherwise at the same size.
+ *
+ * <p>With `rejuvenateAfter > 0` (the `chunked-weak-rejuv` tables), chunks are also kept young between rebuilds. A chunk
+ * that lives through enough young GCs is tenured, and from then on every insert into it is an old-to-young store, as
+ * with a humongous bucket array; under a small young generation G1 lowers the tenuring threshold to 1 or 2 and that
+ * happens within a compile. So the table counts GCs (a `WeakReference` canary to a garbage object, cleared by every
+ * collection), and on the first insert after a chunk has seen `rejuvenateAfter` of them it replaces the chunk with a
+ * copy, which is young. Only element chunks are copied: a hash chunk is an `int[]`, which no young GC scans. And only
+ * chunks that took at least `minWrites` stores since the previous collection: a chunk is 512 cards, and one that is
+ * written rarely costs less to scan than to copy at every young GC (the copy, and then the GC's copy of the copy).
  */
 public final class ChunkedWeak<K> implements Interner<K> {
     static final class Ref extends WeakReference<Object> {
@@ -38,8 +47,27 @@ public final class ChunkedWeak<K> implements Interner<K> {
     private int live;
     private final ReferenceQueue<Object> queue = new ReferenceQueue<>();
 
+    /** Young GCs a chunk may see before it is copied; 0 for never. */
+    private final int rejuvenateAfter;
+    /** Stores into a chunk since the last collection that make it worth copying. */
+    private final int minWrites;
+    private int[] writes;
+    /** Collections seen, counted by `canary` being cleared. */
+    private int epoch;
+    private WeakReference<Object> canary = new WeakReference<>(new Object());
+    /** The epoch each chunk (and the spine, `spineBorn`) was allocated in. */
+    private int[] born;
+    private int spineBorn;
+    private long rejuvenatedChunks;
+
     public ChunkedWeak(int initialCapacity) {
+        this(initialCapacity, 0, 0);
+    }
+
+    public ChunkedWeak(int initialCapacity, int rejuvenateAfter, int minWrites) {
         this.initialCapacity = powerOfTwoAtLeast(Math.max(initialCapacity, 16));
+        this.rejuvenateAfter = rejuvenateAfter;
+        this.minWrites = minWrites;
         clear();
     }
 
@@ -67,6 +95,7 @@ public final class ChunkedWeak<K> implements Interner<K> {
     }
 
     private void add(Object elem, int hash) {
+        if (rejuvenateAfter > 0 && canary.refersTo(null)) newEpoch();
         if ((used + 1) * 2 > mask + 1) rebuild(live * 4 >= mask + 1 ? (mask + 1) * 2 : mask + 1);
         insert(new Ref(elem, hash, queue), hash);
         used++;
@@ -82,7 +111,36 @@ public final class ChunkedWeak<K> implements Interner<K> {
         }
         elems[i >>> CHUNK_BITS][i & CHUNK_MASK] = ref;
         hashes[i >>> CHUNK_BITS][i & CHUNK_MASK] = hash;
+        writes[i >>> CHUNK_BITS]++;
     }
+
+    /** A collection has happened since the last insert: copy the chunks (and the spine) that are about to tenure. */
+    private void newEpoch() {
+        epoch++;
+        canary = new WeakReference<>(new Object());
+        if (epoch - spineBorn >= rejuvenateAfter) {
+            elems = elems.clone();
+            spineBorn = epoch;
+        }
+        for (int c = 0; c < born.length; c++) {
+            if (epoch - born[c] >= rejuvenateAfter && writes[c] >= minWrites) {
+                elems[c] = elems[c].clone();
+                born[c] = epoch;
+                rejuvenatedChunks++;
+            }
+            writes[c] = 0;
+        }
+    }
+
+    private void resetBirths() {
+        born = new int[elems.length];
+        writes = new int[elems.length];
+        java.util.Arrays.fill(born, epoch);
+        spineBorn = epoch;
+    }
+
+    /** Chunks copied to keep them young, for tests and reports. */
+    public long rejuvenatedChunks() { return rejuvenatedChunks; }
 
     /** Reinsert the live elements into fresh chunks of `capacity` slots. */
     private void rebuild(int capacity) {
@@ -90,6 +148,7 @@ public final class ChunkedWeak<K> implements Interner<K> {
         mask = capacity - 1;
         elems = newElems(capacity);
         hashes = newHashes(capacity);
+        resetBirths();
         used = 0;
         live = 0;
         for (Object[] es : oldElems) {
@@ -131,6 +190,7 @@ public final class ChunkedWeak<K> implements Interner<K> {
         mask = initialCapacity - 1;
         elems = newElems(initialCapacity);
         hashes = newHashes(initialCapacity);
+        resetBirths();
         used = 0;
         live = 0;
         while (queue.poll() != null) {}

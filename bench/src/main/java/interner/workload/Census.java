@@ -85,7 +85,7 @@ public final class Census {
         Compile compile = new Compile(cfg, table, cfg.seed, census);
         compile.run();
         census.liveBytesAfter = usedHeapAfterGc() - baseline;
-        if (tableName.endsWith("-weak")) {
+        if (Interner.isWeak(tableName)) {
             // the Reference Handler thread enqueues cleared references after the GC; a lookup then drains the queue,
             // so size() counts only survivors once it stops changing
             Sym s = new Sym(0);

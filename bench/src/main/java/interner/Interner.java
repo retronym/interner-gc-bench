@@ -19,7 +19,11 @@ public interface Interner<K> {
     /** The table's current backing arrays, for the mechanism tests. */
     List<Object> backingArrays();
 
-    /** The tables by name: chained-weak, chained-strong, chunked-weak, chunked-strong, scoped. */
+    /**
+     * The tables by name: chained-weak, chained-strong, chunked-weak, chunked-strong, scoped; and chunked-weak-rejuv, a
+     * chunked-weak that copies an element chunk after one collection if it took at least 256 stores since the last one
+     * (half its cards), or chunked-weak-rejuv-all, which copies every element chunk after every collection.
+     */
     static <K> Interner<K> create(String name, int initialCapacity) {
         return switch (name) {
             case "chained-weak" -> new ChainedWeak<>(initialCapacity);
@@ -27,9 +31,14 @@ public interface Interner<K> {
             case "chunked-weak" -> new ChunkedWeak<>(initialCapacity);
             case "chunked-strong" -> new ChunkedStrong<>(initialCapacity);
             case "scoped" -> new Scoped<>(initialCapacity);
+            case "chunked-weak-rejuv" -> new ChunkedWeak<>(initialCapacity, 1, 256);
+            case "chunked-weak-rejuv-all" -> new ChunkedWeak<>(initialCapacity, 1, 0);
             default -> throw new IllegalArgumentException("unknown interner: " + name);
         };
     }
 
-    List<String> NAMES = List.of("chained-weak", "chained-strong", "chunked-weak", "chunked-strong", "scoped");
+    List<String> NAMES = List.of("chained-weak", "chained-strong", "chunked-weak", "chunked-strong", "scoped", "chunked-weak-rejuv", "chunked-weak-rejuv-all");
+
+    /** Whether a table drops elements nobody else holds, so that it can outlive a compile. */
+    static boolean isWeak(String name) { return name.contains("-weak"); }
 }
