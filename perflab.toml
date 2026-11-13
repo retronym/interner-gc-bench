@@ -1,0 +1,18 @@
+# perflab (github.com/retronym/jvm-perf-lab) runs this project's benchmarks: `perflab ab run campaigns/<spec>.json`
+[build]
+# builds the shaded jar (tests skipped), then hands perflab's JMH arguments as @<file> to perflab's driver, its main class
+jmh = "./mvnw -q -B package -DskipTests && java -jar bench/target/benchmarks.jar {args}"
+server = "self"
+
+[benchmark]
+default = "CompileBenchmark"
+corpus = "size"
+variants = "variants"
+jvmArgs = "-XX:+UseG1GC -Xms8G -Xmx8G"
+
+[paths]
+runs = "out/runs"
+campaigns = "out/campaigns"
+
+[index]
+flags = "^-D|^-XX"

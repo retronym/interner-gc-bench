@@ -1,0 +1,43 @@
+{
+  "name": "m4-threads",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 2,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 10 -i 20 -prof gc"
+  },
+  "variants": {
+    "cw-t1": "",
+    "cw-t2": "",
+    "cw-t4": "",
+    "kw-t1": "",
+    "kw-t2": "",
+    "kw-t4": ""
+  },
+  "variantJmhArgs": {
+    "cw-t1": "-p table=chained-weak -t 1",
+    "cw-t2": "-p table=chained-weak -t 2",
+    "cw-t4": "-p table=chained-weak -t 4",
+    "kw-t1": "-p table=chunked-weak -t 1",
+    "kw-t2": "-p table=chunked-weak -t 2",
+    "kw-t4": "-p table=chunked-weak -t 4"
+  },
+  "description": [
+    "Interner tables under G1: does keeping the table out of humongous regions (no old-to-young stores per insert, no card scanning) make a compile-shaped workload faster? One op is one simulated compile (5M lookups, ~3.7 GB allocated, ~200 MB live), compiles back to back, G1, 8 GB heap, Graal 25.4.4.",
+    "Concurrency: 1, 2 or 4 compiles at once in one JVM (one table each). Hypothesis: with chained tables the time per compile grows faster with concurrency, since each humongous table adds card scanning to every young pause that all threads wait on."
+  ],
+  "variantDescriptions": {
+    "cw-t1": "1 concurrent compiles, each with its own `chained-weak` table",
+    "cw-t2": "2 concurrent compiles, each with its own `chained-weak` table",
+    "cw-t4": "4 concurrent compiles, each with its own `chained-weak` table",
+    "kw-t1": "1 concurrent compiles, each with its own `chunked-weak` table",
+    "kw-t2": "2 concurrent compiles, each with its own `chunked-weak` table",
+    "kw-t4": "4 concurrent compiles, each with its own `chunked-weak` table"
+  },
+  "testbed": "m4",
+  "loadgate": {
+    "maxCores": 1.5,
+    "quietSecs": 30
+  }
+}

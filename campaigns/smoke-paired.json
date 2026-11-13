@@ -1,0 +1,26 @@
+{
+  "name": "smoke-paired",
+  "benchmark": "PairedCompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 1,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 8 -i 16 -prof gc"
+  },
+  "paired": {
+    "cw": "chained-weak",
+    "cs": "chained-strong",
+    "kw": "chunked-weak",
+    "ks": "chunked-strong"
+  },
+  "description": [
+    "Interner tables under G1: does keeping the table out of humongous regions (no old-to-young stores per insert, no card scanning) make a compile-shaped workload faster? One op is one simulated compile (5M lookups, ~3.7 GB allocated, ~200 MB live), compiles back to back, G1, 8 GB heap, Graal 25.4.4.",
+    "All four tables alternate by iteration within one fork (Williams order), so JIT variance between forks cancels; the previous iteration's garbage (a chained table's humongous array) carries over, balanced by the order."
+  ],
+  "variantDescriptions": {
+    "cw": "today's design, after dotc's `WeakHashSet`: one bucket array of weak `Entry` chains; humongous past 512K buckets",
+    "cs": "the same chains with strong entries",
+    "kw": "retronym/scala3#117: open addressing over 64K-slot chunks (256 KB), weak via a slim `WeakReference` carrying the hash",
+    "ks": "the same chunks holding elements directly"
+  }
+}

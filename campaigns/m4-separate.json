@@ -1,0 +1,37 @@
+{
+  "name": "m4-separate",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 3,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 10 -i 20 -t 1 -prof gc"
+  },
+  "variants": {
+    "chained-weak": "",
+    "chained-strong": "",
+    "chunked-weak": "",
+    "chunked-strong": ""
+  },
+  "variantJmhArgs": {
+    "chained-weak": "-p table=chained-weak",
+    "chained-strong": "-p table=chained-strong",
+    "chunked-weak": "-p table=chunked-weak",
+    "chunked-strong": "-p table=chunked-strong"
+  },
+  "description": [
+    "Interner tables under G1: does keeping the table out of humongous regions (no old-to-young stores per insert, no card scanning) make a compile-shaped workload faster? One op is one simulated compile (5M lookups, ~3.7 GB allocated, ~200 MB live), compiles back to back, G1, 8 GB heap, Graal 25.4.4.",
+    "One fork per table and round."
+  ],
+  "variantDescriptions": {
+    "chained-weak": "today's design, after dotc's `WeakHashSet`: one bucket array of weak `Entry` chains; humongous past 512K buckets",
+    "chained-strong": "the same chains with strong entries",
+    "chunked-weak": "retronym/scala3#117: open addressing over 64K-slot chunks (256 KB), weak via a slim `WeakReference` carrying the hash",
+    "chunked-strong": "the same chunks holding elements directly"
+  },
+  "testbed": "m4",
+  "loadgate": {
+    "maxCores": 1.5,
+    "quietSecs": 30
+  }
+}
