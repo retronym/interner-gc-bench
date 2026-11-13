@@ -11,23 +11,30 @@
     "chained-weak": "",
     "chunked-weak": "",
     "chunked-weak-rejuv": "",
-    "chunked-weak-lazy": ""
+    "chunked-weak-lazy": "",
+    "chained-weak-fresh": "",
+    "chunked-weak-fresh": ""
   },
   "variantJmhArgs": {
     "chained-weak": "-p table=chained-weak -p persistent=true",
     "chunked-weak": "-p table=chunked-weak -p persistent=true",
     "chunked-weak-rejuv": "-p table=chunked-weak-rejuv -p persistent=true",
-    "chunked-weak-lazy": "-p table=chunked-weak-lazy -p persistent=true"
+    "chunked-weak-lazy": "-p table=chunked-weak-lazy -p persistent=true",
+    "chained-weak-fresh": "-p table=chained-weak -p persistent=false",
+    "chunked-weak-fresh": "-p table=chunked-weak -p persistent=false"
   },
   "description": [
     "Persistent tables (one per thread for the whole fork, as a resident compiler such as dotc's `ContextBase.uniques` would keep) under a small young generation: 2 GB heap, `-Xmn256m`, 4 MB regions, so the table lives through hundreds of young GCs and its chunks tenure. Dead entries leave the table only after reference processing clears them, which for a tenured element waits on old-generation marking, so the table grows and inserts dirty cards in old regions.",
-    "Asks: how far the weak tables diverge once the table outlives compiles, and whether rejuvenation (`-rejuv`) or dropping the queue (`-lazy`) helps there. Strong tables cannot persist. Graal 25.4.4 on the M5 Pro, one fork per table and round."
+    "Asks: how far the weak tables diverge once the table outlives compiles, and whether rejuvenation (`-rejuv`) or dropping the queue (`-lazy`) helps there. Strong tables cannot persist. Graal 25.4.4 on the M5 Pro, one fork per table and round.",
+    "The `-fresh` variants, added after the first run, are the control: the same tables made fresh for each compile at the same heap settings."
   ],
   "variantDescriptions": {
     "chained-weak": "dotc's `WeakHashSet` layout",
     "chunked-weak": "retronym/scala3#117's chunked weak table",
     "chunked-weak-rejuv": "`chunked-weak`, copying each element chunk written at least 256 times since the last GC, so chunks stay young",
-    "chunked-weak-lazy": "`chunked-weak` without a `ReferenceQueue`"
+    "chunked-weak-lazy": "`chunked-weak` without a `ReferenceQueue`",
+    "chained-weak-fresh": "control: `chained-weak` with a fresh table per compile, at the same heap settings",
+    "chunked-weak-fresh": "control: `chunked-weak` with a fresh table per compile, at the same heap settings"
   },
   "loadgate": {
     "maxCores": 1.5,
