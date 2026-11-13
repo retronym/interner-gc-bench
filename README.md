@@ -269,7 +269,17 @@ Timing explains the misses. A concurrent cycle can clear an entry only if its el
 | chained-weak | ~620 | 836 | 943 |
 | chunked-weak | ~640 | 795 | 989 |
 
-So a resident compiler that ends each Run with a concurrent cycle keeps its weak table bounded, at roughly a third more per compile than a fresh table here. A table that drops a Run's entries itself would get the bound without the cycle.
+Campaign `m5-persistent-cycle` measures it under JMH (`gcBetween=true`: `System.gc()` before each compile, outside the timing, with `-XX:+ExplicitGCInvokesConcurrent`; M5 Pro, 2 forks × 20 compiles, 7 attempts voided for load):
+
+| table | fresh, cycle per compile | persistent, cycle per compile | Δ | pauses fresh / persistent |
+|---|--:|--:|--:|--:|
+| chained-weak | 700 | 785 | +12% | 150 / 196 |
+| chunked-weak | 679 | 851 | +25% | 126 / 223 |
+| chunked-weak-lazy | 733 | 862 | +18% | 120 / 207 |
+
+No fork had a Full GC, and every compile got its own remark. Under JMH the cycle costs a fresh table little (about 690 ms against 620–740 without it in the other M5 campaigns, which are noisier than that difference), unlike in the `Driver` probe. A persistent table with a cycle per compile costs 12–25% more than a fresh one, against 80–100% without the cycle (`m5-persistent-salted`). Most of the remaining gap is pauses: the persistent table is old, so inserts into it dirty cards, and the chained layout now does best, because its humongous array is old in either case.
+
+So a resident compiler that ends each Run with a concurrent cycle keeps its weak table bounded, at 12–25% more per compile than a fresh table here. A table that drops a Run's entries itself would get the bound without the cycle, and a fresh table per Run (Scala 2's choice) avoids the question.
 
 This is the case for clearing by compile rather than by GC: a resident compiler knows when a compile's types die (at the end of its Run, unless something outside the Run holds them), and a table that tags entries with the Run that made them could drop a Run's entries itself.
 
