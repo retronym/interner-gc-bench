@@ -45,15 +45,15 @@ DONE
 - `chunked-weak-rejuv` (copy written element chunks after each collection) and a persistent mode (one table across compiles), with a WhiteBox test; probed at `-Xmn256m` (README, "Keeping chunks young").
 - GC logs written with `::filecount=0`; `GcLog` refuses rotated logs.
 - Compile for release 21: the testbed worker's Maven runs on JDK 21.
+- M4 campaigns (separate, paired, threads) and `m5-scaling`, in the README. The paired fork's `chunked-weak` slowdown is profile pollution: the four-way `Interner.intern` site exhausts Graal's inlining budget inside `ChunkedWeak.intern` (JIT recording).
 
 TODO
 - Persistent tables at a small young generation: dead entries stay in the table until old-generation marking frees their elements, so the table grows and scans tens of millions of cards. Worth a look: clearing entries by compile (an epoch per entry) instead of waiting for reference processing.
 - An `m4-tenure` campaign (separate forks, `-Xmn256m`, fresh and persistent, chunked-weak against -rejuv) once the m4 campaigns have run.
-- Explain `chunked-weak`'s slowdown in the paired fork (+24% against `chained-weak`, against a 7% win in separate forks): noise over four cycles, or profile pollution at the megamorphic `Interner.intern` call site? A JIT recording (`"jitRecording": true`) on the paired campaign would show it.
+- `m5-scaling-heap`: the scaling campaign with 1.5 GB of heap per compile (job 530).
 - Void and rerun the `smoke-whitebox` cells (their logs were overwritten by the paired fork that JMH's pattern also matched), or drop that campaign in favour of `Driver`.
 
 Future work
-- M4 testbed campaigns (`campaigns/m4-*.json`, needs Jason's go-ahead).
 - A nursery-plus-sealed-segments table (write-up PLAN §5); other collectors (Parallel, ZGC) as a control where the humongous effect should vanish; a smaller heap (2 GB) to sharpen the age distribution.
 - A fixed `-Xmn` variant, to give the 1–3 young GCs per compile that dotc sees instead of the ~1 this workload sees at 8 GB.
 

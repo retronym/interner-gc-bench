@@ -102,9 +102,43 @@ Concurrency (`smoke-threads`, ms per compile with 1, 2 and 4 compiles at once in
 
 Both scale poorly: four compiles each allocating at about 6 GB/s share one heap and the GC's worker threads. The chained table degrades a little faster, as the hypothesis predicts, but one fork per cell cannot separate the two.
 
-Paired (`smoke-paired`, all four tables in one fork, 16 measured iterations, so only four cycles): the paired means are `chained-weak` 544 ms, `chained-strong` 508, `chunked-weak` 656, `chunked-strong` 523. That `chunked-weak` is slower here than `chained-weak` (+24%, and +17% with GC pauses removed), against the separate forks, is unexplained. With a per-cycle spread of 32% it may be noise, but its GC-free delta points at mutator code. One candidate is profile pollution: in a shared fork, `Compile.lookup`'s call to `Interner.intern` sees all four tables and is megamorphic, which separate forks never are. The M4 campaign, with more cycles, and a JIT recording will tell.
+Paired (`smoke-paired`, all four tables in one fork, 16 measured iterations, so only four cycles): the paired means are `chained-weak` 544 ms, `chained-strong` 508, `chunked-weak` 656, `chunked-strong` 523. That `chunked-weak` is slower here than `chained-weak` (+24%, and +17% with GC pauses removed), against the separate forks, is an artifact of the shared fork: see the M4 results below.
 
 The `gc.log` of each `smoke-separate`, `smoke-threads` and `smoke-whitebox` cell is not usable. JMH matched `CompileBenchmark` in the old `PairedCompileBenchmark` too, so every cell also ran a second, paired fork that overwrote it (now renamed `CompilePairedBenchmark`). The timings above come from the right fork.
+
+### M4 testbed
+
+On the M4 testbed (`m4`), Graal 25.4.4, G1, 8 GB, full-size compiles, each fork with a JIT recording. Means over forks, with their 99.9% CI.
+
+`m4-separate` (one table per fork, 3 rounds of 20 measured iterations):
+
+| table | ms/compile | Δ against chained-weak |
+|---|--:|--:|
+| chained-weak | 635 ± 11 | |
+| chained-strong | 600 ± 10 | −5.5% |
+| chunked-weak | 563 ± 10 | −11.4% |
+| chunked-strong | 486 ± 8 | −23.5% |
+
+`m4-threads` (2 rounds), ms per compile:
+
+| table | 1 compile | 2 at once | 4 at once |
+|---|--:|--:|--:|
+| chained-weak | 632 ± 26 | 948 ± 40 | 1,561 ± 65 |
+| chunked-weak | 566 ± 24 | 743 ± 31 | 1,469 ± 61 |
+| chained / chunked | 1.12 | 1.28 | 1.06 |
+
+As on the M5, the chunked table's lead is largest at two compiles and shrinks again at four, where both are bound by the shared 8 GB heap.
+
+`m4-paired` (all four tables in one fork, alternating by iteration, 3 forks of 32 measured iterations), means of the three forks:
+
+| table | ms/compile | GC-free ms/compile |
+|---|--:|--:|
+| chained-weak | 614 | 501 |
+| chained-strong | 551 | 467 |
+| chunked-weak | 610 | 548 |
+| chunked-strong | 583 | 476 |
+
+`chunked-weak` is about 9% slower than `chained-weak` with GC pauses removed, in every fork. The JIT recording shows why: profile pollution, as suspected. In a paired fork, the call to `Interner.intern` in `Compile.lookup` sees all four tables, so Graal compiles it as a four-way type switch and inlines each table's `intern` into one compilation unit. The inlining budget runs out inside the largest of the four, `ChunkedWeak.intern`. In the paired fork, `ChunkedWeak.intern`'s calls to `add`, `removeStaleEntries` and `Node$Kind.make` are left as real calls ("budget was too small to inline this callsite"); `Compile.lookup` is 13.8 KB of code. In a separate `chunked-weak` fork the call site sees one type, everything is inlined, and `Compile.lookup` is 25.9 KB. The `chained-weak` path is inlined fully in both. A paired fork therefore compares the tables' GC behaviour fairly but not their mutator code, and the separate forks are the measurement for time per compile.
 
 ### Scalability on the M5 Pro
 
