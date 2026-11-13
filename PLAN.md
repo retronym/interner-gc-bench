@@ -48,8 +48,7 @@ DONE
 - M4 campaigns (separate, paired, threads), `m5-scaling`, `m5-scaling-heap` and `m5-scaling-heap-rejuv`, in the README. `m4-ablation`, `m4-tenure`, `m5-persistent-salted` (persistent against fresh, 2 GB, `-Xmn256m`) and `Driver`'s table-size output, in the README. The paired fork's `chunked-weak` slowdown is profile pollution: the four-way `Interner.intern` site exhausts Graal's inlining budget inside `ChunkedWeak.intern` (JIT recording).
 
 TODO
-- Persistent tables at a small young generation (measured: `m5-persistent`, README): dead entries stay in the table until old-generation marking frees their elements, so the table grows and scans tens of millions of cards. Worth a look: clearing entries by compile (an epoch per entry) instead of waiting for reference processing.
-- A Run-tagged table that drops (or demotes to weak) a Run's entries when the Run ends, measured persistent against `m5-persistent`.
+- A Run-tagged table that drops a Run's entries when the Run ends (what stays canonical across Runs, e.g. classpath types, needs a decision), measured persistent against `m5-persistent-salted` and against a concurrent cycle per compile (README, "Persistent tables, measured").
 - Void and rerun the `smoke-whitebox` cells (their logs were overwritten by the paired fork that JMH's pattern also matched), or drop that campaign in favour of `Driver`.
 
 Future work
