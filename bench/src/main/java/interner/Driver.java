@@ -26,7 +26,7 @@ public final class Driver {
             long t0 = System.nanoTime();
             Interner<Node> t = persistent ? (kept == null ? kept = Interner.create(table, cfg.initialCapacity) : kept)
                     : Interner.create(table, cfg.initialCapacity);
-            Compile c = new Compile(cfg, t, cfg.seed, null, hot);
+            Compile c = new Compile(cfg, t, cfg.seed, null, hot, persistent ? i * 0x9E3779B9 : 0);
             sink += c.run();
             if (persistent) hot = c.hot();
             Runtime rt = Runtime.getRuntime();

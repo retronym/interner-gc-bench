@@ -48,6 +48,7 @@ public class CompileBenchmark {
     private long seed;
     private Interner<Node> kept;
     private Node[] hot;
+    private int compiles;
 
     @Setup(Level.Trial)
     public void setup(ThreadParams tp) {
@@ -62,7 +63,7 @@ public class CompileBenchmark {
     public long compile() {
         if (!persistent) return new Compile(cfg, Interner.create(table, cfg.initialCapacity), seed, null).run();
         if (kept == null) kept = Interner.create(table, cfg.initialCapacity);
-        Compile c = new Compile(cfg, kept, seed, null, hot);
+        Compile c = new Compile(cfg, kept, seed, null, hot, compiles++ * 0x9E3779B9);
         long sum = c.run();
         hot = c.hot();
         return sum;

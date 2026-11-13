@@ -58,6 +58,7 @@ public final class Compile {
 
     private final Object[] scratch = new Object[32];
     private int scratchPos;
+    private final int symSalt;
 
     long lookups, hits, hitStepLookups;
     private boolean inHitStep;
@@ -72,6 +73,17 @@ public final class Compile {
      * own, as successive compiles in a resident compiler share the classpath's types. With `hot` null it makes one.
      */
     public Compile(WorkloadConfig cfg, Interner<Node> table, long seed, Census census, Node[] hot) {
+        this(cfg, table, seed, census, hot, 0);
+    }
+
+    /**
+     * As above, with every fresh symbol's hash XORed with `symSalt`. Compiles against one persistent table pass a
+     * different salt each, so they make the same shapes with different hashes, as a resident compiler's successive
+     * runs make new symbols. With one seed and no salt, every compile would repeat the earlier compiles' hashes, and
+     * each lookup would walk (and dereference) all of their equal-hash entries.
+     */
+    public Compile(WorkloadConfig cfg, Interner<Node> table, long seed, Census census, Node[] hot, int symSalt) {
+        this.symSalt = symSalt;
         this.hot = hot;
         this.cfg = cfg;
         this.table = table;
@@ -195,7 +207,7 @@ public final class Compile {
         }
     }
 
-    private Sym freshSym() { return new Sym(rng.nextInt()); }
+    private Sym freshSym() { return new Sym(rng.nextInt() ^ symSalt); }
 
     private int geometric(double log1mp) {
         return (int) (Math.log(1 - rng.nextDouble()) / log1mp);

@@ -1,0 +1,43 @@
+{
+  "name": "m5-persistent-salted",
+  "benchmark": "CompileBenchmark",
+  "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
+  "rounds": 2,
+  "gcLog": true,
+  "corpora": {
+    "full": "-wi 10 -i 20 -t 1 -prof gc"
+  },
+  "variants": {
+    "chained-weak": "",
+    "chunked-weak": "",
+    "chunked-weak-rejuv": "",
+    "chunked-weak-lazy": "",
+    "chained-weak-fresh": "",
+    "chunked-weak-fresh": ""
+  },
+  "variantJmhArgs": {
+    "chained-weak": "-p table=chained-weak -p persistent=true",
+    "chunked-weak": "-p table=chunked-weak -p persistent=true",
+    "chunked-weak-rejuv": "-p table=chunked-weak-rejuv -p persistent=true",
+    "chunked-weak-lazy": "-p table=chunked-weak-lazy -p persistent=true",
+    "chained-weak-fresh": "-p table=chained-weak -p persistent=false",
+    "chunked-weak-fresh": "-p table=chunked-weak -p persistent=false"
+  },
+  "description": [
+    "`m5-persistent` again after fixing a benchmark artifact: with one seed, every compile against a persistent table repeated the earlier compiles' hashes, so each lookup walked and dereferenced all their equal-hash dead entries (and `Reference.get` during marking kept those referents alive). Persistent compiles now salt their symbols' hashes, making the same shapes with new hashes, as a resident compiler's successive runs make new symbols. Fresh compiles are unchanged.",
+    "Persistent tables (one per thread for the whole fork) against fresh ones, at 2 GB, `-Xmn256m`, 4 MB regions. Graal 25.4.4 on the M5 Pro, one fork per table and round."
+  ],
+  "variantDescriptions": {
+    "chained-weak": "dotc's `WeakHashSet` layout, persistent",
+    "chunked-weak": "retronym/scala3#117's chunked weak table, persistent",
+    "chunked-weak-rejuv": "`chunked-weak`, copying each element chunk written at least 256 times since the last GC, so chunks stay young",
+    "chunked-weak-lazy": "`chunked-weak` without a `ReferenceQueue`",
+    "chained-weak-fresh": "control: `chained-weak` with a fresh table per compile, at the same heap settings",
+    "chunked-weak-fresh": "control: `chunked-weak` with a fresh table per compile, at the same heap settings"
+  },
+  "loadgate": {
+    "maxCores": 1.5,
+    "quietSecs": 30
+  },
+  "jvmArgs": "-XX:+UseG1GC -Xms2G -Xmx2G -Xmn256m -XX:G1HeapRegionSize=4m"
+}
