@@ -38,10 +38,13 @@ DONE
 - Workload generator, `WorkloadConfig`, `Census`; defaults tuned against the dotc census; a unit of the workload is a (unit, phase) scope, as in the census, so a few hundred lookups.
 - WhiteBox heap-placement tests and a G1-log mechanism test, run as a separate surefire execution; both checked to fail with humongous chunks.
 - `GcLog` and `JfrSummary`, `Driver`.
-- `CompileBenchmark` (threads via `-t`), `PairedCompileBenchmark`; perflab.toml; smoke and m4 campaigns.
+- `CompileBenchmark` (threads via `-t`), `CompilePairedBenchmark`; perflab.toml; smoke and m4 campaigns.
+
+- Local smoke runs (separate, paired, threads; whitebox via `Driver`), summarised in README.
 
 TODO
-- Local smoke runs of each campaign (queued behind other jobs on the laptop); summarise in README.
+- Explain `chunked-weak`'s slowdown in the paired fork (+24% against `chained-weak`, against a 7% win in separate forks): noise over four cycles, or profile pollution at the megamorphic `Interner.intern` call site? A JIT recording (`"jitRecording": true`) on the paired campaign would show it.
+- Void and rerun the `smoke-whitebox` cells (their logs were overwritten by the paired fork that JMH's pattern also matched), or drop that campaign in favour of `Driver`.
 
 Future work
 - M4 testbed campaigns (`campaigns/m4-*.json`, needs Jason's go-ahead).

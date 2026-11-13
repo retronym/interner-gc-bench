@@ -1,6 +1,6 @@
 {
   "name": "m4-paired",
-  "benchmark": "PairedCompileBenchmark",
+  "benchmark": "CompilePairedBenchmark",
   "jvm": "/Users/jzaugg-virtus/.sdkman/candidates/java/25.4.4.1+1-graal/bin/java",
   "rounds": 3,
   "gcLog": true,

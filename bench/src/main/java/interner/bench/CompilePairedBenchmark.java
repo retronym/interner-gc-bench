@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 @Fork(value = 1, jvmArgsAppend = {"-XX:+UseG1GC", "-Xms8g", "-Xmx8g"})
 @Warmup(iterations = 12)
 @Measurement(iterations = 24)
-public class PairedCompileBenchmark {
+public class CompilePairedBenchmark {
     @Param({"cw=chained-weak|kw=chunked-weak|ks=chunked-strong"})
     public String variants;
 

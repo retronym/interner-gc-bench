@@ -10,7 +10,8 @@ import org.openjdk.jmh.infra.ThreadParams;
 import java.util.concurrent.TimeUnit;
 
 /**
- * One op is one simulated compile against a fresh interner of kind `table`. Compiles run back to back with no forced
+ * One op is one simulated compile against a fresh interner of kind `table`. (No other benchmark name contains
+ * "CompileBenchmark", since JMH matches its include pattern anywhere in the name.) Compiles run back to back with no forced
  * GC between them, as in a compile loop, so each sees one or two young GCs at an 8 GB heap.
  *
  * <p>Each thread runs its own compiles (its own seed, its own table), as concurrent compilers in one JVM would; run
