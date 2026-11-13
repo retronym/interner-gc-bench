@@ -206,10 +206,12 @@ Chunking keeps the table out of humongous regions, but a chunk is still an ordin
 | chunked-weak | no | 736 | 154 | 1,428 | 3,701,430 | 5,854 |
 | chunked-weak-rejuv | no | 673 | 165 | 1,090 | 455,016 | 6,377 |
 | chunked-weak-rejuv-all | no | 698 | 164 | 1,099 | 454,586 | 6,326 |
-| chained-weak | yes | 1,712 | 153 | 2,092 | 32,036,768 | 5,872 |
-| chunked-weak | yes | 1,613 | 154 | 2,246 | 34,876,914 | 6,476 |
-| chunked-weak-rejuv | yes | 1,664 | 181 | 2,669 | 46,299,977 | 10,305 |
-| chunked-weak-rejuv-all | yes | 6,307 | 3,155 | 32,699 | 453,988,091 | 66,638 |
+| chained-weak | yes* | 1,712 | 153 | 2,092 | 32,036,768 | 5,872 |
+| chunked-weak | yes* | 1,613 | 154 | 2,246 | 34,876,914 | 6,476 |
+| chunked-weak-rejuv | yes* | 1,664 | 181 | 2,669 | 46,299,977 | 10,305 |
+| chunked-weak-rejuv-all | yes* | 6,307 | 3,155 | 32,699 | 453,988,091 | 66,638 |
+
+\* measured before the persistent compiles' hashes were salted: see below.
 
 With frequent young GCs and a table per compile, plain chunks tenure and scan 3.7M cards, most of what the chained table scans. Rejuvenation brings that down eightfold and pause time down by a quarter, for about 9% more copying, and the compile is 9% faster.
 
@@ -217,29 +219,18 @@ A persistent table is a different problem, and rejuvenation makes it worse. With
 
 ### Persistent tables, measured
 
-Campaign `m5-persistent` (M5 Pro, Graal 25.4.4, 2 GB heap, `-Xmn256m`, 4 MB regions, 2 forks × 20 iterations per table; pauses summed from `gc.log` over the measured iterations), ms per compile:
+The persistent rows above, and the first run of campaign `m5-persistent`, measured a benchmark artifact as much as the table. With one seed, every compile against a persistent table repeated the earlier compiles' hashes, so each lookup walked and dereferenced all of their equal-hash entries, dead or alive. The walk grows with the number of compiles the table remembers, and `Reference.get` during concurrent marking keeps the referent alive (G1's SATB barrier), so each remark found 120–370K of the table's references with live referents. Persistent compiles now salt their symbols' hashes (the same shapes with new hashes, as a resident compiler's next run makes new symbols); fresh compiles are unchanged. The artifact's numbers, M5 Pro, 2 GB, `-Xmn256m`, ms per compile: fresh `chained-weak` 620, `chunked-weak` 635; persistent 1,885 and 1,756, sawtoothing from 700 to over 2,000 between Full GCs.
 
-| table | persistent | score | GC pauses | the rest |
-|---|---|--:|--:|--:|
-| chained-weak | no | 620 | 139 | 481 |
-| chunked-weak | no | 635 | 122 | 513 |
-| chained-weak | yes | 1,885 | 272 | 1,613 |
-| chunked-weak | yes | 1,756 | 317 | 1,439 |
-| chunked-weak-rejuv | yes | 1,489 | 276 | 1,213 |
-| chunked-weak-lazy | yes | 1,492 | 285 | 1,207 |
+With the salt, `Driver` (persistent, same settings, which prints the table's size after each compile):
 
-Keeping the table triples the cost of a compile, and most of that is outside the pauses. Within a fork the time per compile is a sawtooth: it climbs from about 700 ms to over 2,000 ms and falls back after a Full GC (1,647 MB → 792 MB in the heap), which every persistent fork had and no fresh one did. Here, unlike the `Driver` probe above, rejuvenation and the queue-less table each save about 270 ms per compile, but the error over 20 sawtoothed iterations is wide (±300 ms in JMH's terms) and both are still more than twice the fresh tables.
+| compile | 0 | 3 | 6 | 9 | 12 | 15 | 18 (after a Full GC) |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| `chained-weak` entries | 1.5M | 6.1M | 6.4M | 9.5M | 11.8M | 14.1M | 4.0M |
+| ms | 655 | 707 | 1,134 | 1,021 | 1,054 | 968 | 3,708 |
 
-`Driver` (which now prints the table's size after each compile) shows what grows. `chained-weak`, persistent, same settings:
+A fresh table stays at 1.5M entries and about 620 ms. The persistent one still grows: a compile adds about 1.5M entries whose elements tenure before it ends, so only old-generation marking can clear them, and the cycles clear a fraction. With the initiating occupancy at 10% (32 cycles in 30 compiles) each remark clears between 45K and 850K references and drops almost none, yet the table still gains about 0.75M entries per compile until a Full GC. Under Parallel GC, which has no concurrent cycles, it gains the full 1.5M. Why each G1 cycle misses most of the dead entries is open (elements and references promoted during marking are above TAMS and so implicitly live for that cycle; with marking this frequent that may be most of them). Campaign `m5-persistent-salted` remeasures the tables with the fix.
 
-| compile | 0 | 3 | 6 | 9 | 12 | 15 | 18 | 21 (after a Full GC) |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|
-| entries | 1.5M | 6.1M | 7.2M | 9.1M | 12.5M | 13.4M | 16.2M | 3.1M |
-| ms | 653 | 970 | 1,670 | 1,781 | 1,624 | 2,228 | 2,298 | 780 |
-
-A compile adds about 1.5M entries, and the elements behind them tenure before the compile ends, so only old-generation marking can clear them. `-Xlog:gc+phases+ref=debug` shows each concurrent cycle's remark clearing 1.4–2.0M `WeakReference`s, about one compile's worth (young GCs clear about 10K each, the entries that died young). But G1 starts a cycle only when old-generation occupancy crosses its threshold: 18 cycles in 30 compiles here. So the table gains about half a compile's entries per compile net, and the old generation fills until a Full GC. Under Parallel GC, which has no concurrent cycles, the table grows by the full 1.5M per compile until a Full GC brings it back to one compile's worth. The mutator's cost tracks the table's size: a table of 10M+ entries rebuilds, probes and misses cache on dead entries.
-
-This is the case for clearing by compile rather than by GC: a resident compiler knows when a compile's types die (at the end of its Run, unless something outside the Run holds them), and a table that tags entries with the Run that made them could drop a Run's entries itself, or demote them to weak only then.
+This is the case for clearing by compile rather than by GC: a resident compiler knows when a compile's types die (at the end of its Run, unless something outside the Run holds them), and a table that tags entries with the Run that made them could drop a Run's entries itself.
 
 ## Building
 
