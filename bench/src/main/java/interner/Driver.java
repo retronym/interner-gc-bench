@@ -9,7 +9,7 @@ import java.util.Locale;
 /**
  * `Driver <table> <compiles> [key=value,...]`: run that many compiles back to back in one thread, as a compile loop
  * would (no forced GC between them unless `-Dgc.between=true`; one table kept across them with `-Dpersistent=true`),
- * and print the time of each. For runs under GC logging
+ * and print the time of each, the table's size and the heap in use after it. For runs under GC logging
  * or JFR outside JMH.
  */
 public final class Driver {
@@ -29,7 +29,9 @@ public final class Driver {
             Compile c = new Compile(cfg, t, cfg.seed, null, hot);
             sink += c.run();
             if (persistent) hot = c.hot();
-            System.out.printf(Locale.ROOT, "%s compile %d: %.1f ms%n", table, i, (System.nanoTime() - t0) / 1e6);
+            Runtime rt = Runtime.getRuntime();
+            System.out.printf(Locale.ROOT, "%s compile %d: %.1f ms, table size %d, heap used %d MB%n", table, i,
+                    (System.nanoTime() - t0) / 1e6, t.size(), (rt.totalMemory() - rt.freeMemory()) >> 20);
         }
         if (sink == 42) System.out.println();
     }
