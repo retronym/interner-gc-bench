@@ -106,6 +106,23 @@ Paired (`smoke-paired`, all four tables in one fork, 16 measured iterations, so 
 
 The `gc.log` of each `smoke-separate`, `smoke-threads` and `smoke-whitebox` cell is not usable. JMH matched `CompileBenchmark` in the old `PairedCompileBenchmark` too, so every cell also ran a second, paired fork that overwrote it (now renamed `CompilePairedBenchmark`). The timings above come from the right fork.
 
+### Scalability on the M5 Pro
+
+`m5-scaling`: 1 to 16 compiles at once in one JVM, each with its own table, against a fixed 8 GB heap, on the M5 Pro laptop (6 performance and 12 efficiency cores), Graal 25.4.4, two rounds of 10 measured iterations. GC count and time come from `-prof gc` (the collectors' MXBeans) over the 10 iterations.
+
+| N | chained-weak ms/compile | chunked-weak ms/compile | chained / chunked | chained compiles/s | chunked compiles/s | chained GC ms | chunked GC ms |
+|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1 | 598 | 543 | 1.10 | 1.7 | 1.8 | 974 | 250 |
+| 2 | 789 | 628 | 1.26 | 2.5 | 3.2 | 2,416 | 596 |
+| 4 | 1,315 | 1,112 | 1.18 | 3.0 | 3.6 | 6,840 | 4,331 |
+| 8 | 1,974 | 1,672 | 1.18 | 4.1 | 4.8 | 12,004 | 8,330 |
+| 12 | 2,962 | 2,596 | 1.14 | 4.1 | 4.6 | 18,298 | 14,872 |
+| 16 | 4,191 | 3,180 | 1.32 | 3.8 | 5.0 | 26,548 | 18,944 |
+
+The rounds agree within 2%, except `chunked-weak` at N=12 (2,763 and 2,430 ms).
+
+The chunked table's lead grows with concurrency, from 10% at N=1 to 32% at N=16, where `chained-weak` throughput has started to fall (3.8 compiles/s against 4.1 at N=8) and `chunked-weak` still rises (5.0). It does not grow steadily, though (26% at N=2, 14% at N=12), and the larger effect is that neither table scales: 16 compiles give 2.3–2.9 times the throughput of one. With the heap fixed at 8 GB, N compiles allocate N times as fast into the same young generation and keep N times the live data, so GC time grows faster than N, to about 60% of the wall time at N=16 for both tables. That heap pressure is common to both and dilutes the difference that card scanning makes. A campaign with the heap scaled with N would separate the two.
+
 ## Keeping chunks young
 
 Chunking keeps the table out of humongous regions, but a chunk is still an ordinary object that tenures once it has lived through enough young GCs, and from then on inserts into it are old-to-young stores again. At an 8 GB heap this does not happen within a compile: G1 keeps the tenuring threshold at 15 and a compile sees one or two young GCs. It does happen when young GCs are frequent, because G1 then lowers the threshold to 1 or 2, and when a table outlives many compiles, as in a resident compiler (`persistent=true`: one table and hot pool per thread across compiles; weak tables only).
