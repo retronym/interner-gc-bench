@@ -170,6 +170,19 @@ The chunked table's lead grows with concurrency, from 10% at N=1 to 32% at N=16,
 
 With each compile's heap share fixed, both tables scale further (6.0 compiles/s at N=16 rather than 5.0), but the chunked table's lead does not grow with N: it stays between 5% and 17%, and is smallest at N=16. The hypothesis that spare cores hide the chained table's GC cost at small N is not supported; the growing gap in `m5-scaling` came with heap pressure, not core contention. The GC times say why the gap shrinks: the chained table's extra GC time is about 700 ms at N=1 and 500 ms at N=16, while the chunked table's GC time grows almost as fast as N. At 1.5 GB per compile the young generation is small, compiles see several GCs each, and chunks live long enough to be promoted, after which they dirty cards like the chained array does (as in the `-Xmn256m` probe, "Keeping chunks young"). Rejuvenation should restore the gap here.
 
+`m5-scaling-heap-rejuv` ran `chunked-weak-rejuv` under the same settings afterwards (a separate campaign, so drift between the two is not controlled), set against the `m5-scaling-heap` cells above:
+
+| N | chunked-weak ms/compile | chunked-weak-rejuv ms/compile | chained / rejuv | chunked GC ms | rejuv GC ms |
+|--:|--:|--:|--:|--:|--:|
+| 1 | 626 | 624 | 1.09 | 1,094 | 914 |
+| 2 | 797 | 773 | 1.13 | 2,180 | 1,722 |
+| 4 | 1,075 | 1,052 | 1.20 | 4,022 | 3,333 |
+| 8 | 1,604 | 1,524 | 1.12 | 7,456 | 6,452 |
+| 12 | 1,970 | 1,944 | 1.13 | 10,199 | 9,575 |
+| 16 | 2,655 | 2,392 | 1.17 | 14,785 | 12,905 |
+
+Rejuvenation cuts GC time by 6–21% at every N, consistently across rounds, and time per compile by 0–10%, most at N=16, where the lead over `chained-weak` goes from 5% back to 17%. The per-cell time differences other than at N=16 are inside the forks' spread (about ±10%), so this says rejuvenation recovers part of what tenured chunks cost, not that it restores a gap that grows with N.
+
 ## Keeping chunks young
 
 Chunking keeps the table out of humongous regions, but a chunk is still an ordinary object that tenures once it has lived through enough young GCs, and from then on inserts into it are old-to-young stores again. At an 8 GB heap this does not happen within a compile: G1 keeps the tenuring threshold at 15 and a compile sees one or two young GCs. It does happen when young GCs are frequent, because G1 then lowers the threshold to 1 or 2, and when a table outlives many compiles, as in a resident compiler (`persistent=true`: one table and hot pool per thread across compiles; weak tables only).
