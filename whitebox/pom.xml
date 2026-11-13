@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>io.github.retronym.internergc</groupId><artifactId>interner-gc-bench-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
+  <artifactId>whitebox</artifactId>
+  <description>The Java side of HotSpot's WhiteBox API, vendored from OpenJDK test/lib at jdk-25+26 (GPLv2, see LICENSE). Loaded on the boot class path by the mechanism tests.</description>
+  <licenses><license><name>GNU General Public License, version 2</name><url>https://openjdk.org/legal/gplv2+ce.html</url></license></licenses>
+  <build>
+    <finalName>wb</finalName>
+    <plugins>
+      <plugin><artifactId>maven-compiler-plugin</artifactId><configuration><compilerArgs><arg>-Xlint:-removal</arg></compilerArgs></configuration></plugin>
+    </plugins>
+  </build>
+</project>

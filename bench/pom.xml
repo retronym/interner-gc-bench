@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>io.github.retronym.internergc</groupId><artifactId>interner-gc-bench-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
+  <artifactId>interner-gc-bench</artifactId>
+  <description>Interner tables, the compile-shaped workload, JMH benchmarks and GC log/JFR summaries: target/benchmarks.jar</description>
+  <licenses><license><name>Apache License, Version 2.0</name><url>https://www.apache.org/licenses/LICENSE-2.0</url></license></licenses>
+
+  <properties>
+    <wb.jar>${project.basedir}/../whitebox/target/wb.jar</wb.jar>
+  </properties>
+
+  <dependencies>
+    <dependency><groupId>io.github.retronym.perflab</groupId><artifactId>perflab-jmh</artifactId></dependency>
+    <dependency><groupId>org.openjdk.jmh</groupId><artifactId>jmh-core</artifactId></dependency>
+    <dependency><groupId>org.openjdk.jmh</groupId><artifactId>jmh-generator-annprocess</artifactId><version>${jmh.version}</version><scope>provided</scope></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
+    <!-- compile-time only for the mechanism tests; at run time the class comes from the boot class path -->
+    <dependency><groupId>io.github.retronym.internergc</groupId><artifactId>whitebox</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <annotationProcessorPaths>
+            <path><groupId>org.openjdk.jmh</groupId><artifactId>jmh-generator-annprocess</artifactId><version>${jmh.version}</version></path>
+          </annotationProcessorPaths>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <excludes><exclude>**/mechanism/**</exclude></excludes>
+          <argLine>-XX:+UseG1GC -Xmx1g</argLine>
+        </configuration>
+        <executions>
+          <!-- GC mechanism assertions: a fresh JVM with the WhiteBox API and an 8 GB heap's region size (4 MB, so the
+               humongous threshold is 2 MB) without committing 8 GB -->
+          <execution>
+            <id>mechanism</id>
+            <phase>test</phase>
+            <goals><goal>test</goal></goals>
+            <configuration>
+              <excludes combine.self="override"/>
+              <includes><include>**/mechanism/**/*Test.java</include></includes>
+              <argLine>-XX:+UseG1GC -Xms2g -Xmx2g -XX:G1HeapRegionSize=4m -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:${wb.jar}</argLine>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <executions><execution><phase>package</phase><goals><goal>shade</goal></goals>
+          <configuration>
+            <finalName>benchmarks</finalName>
+            <createDependencyReducedPom>false</createDependencyReducedPom>
+            <transformers>
+              <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"><mainClass>io.github.retronym.perflab.jmh.Main</mainClass></transformer>
+              <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+            </transformers>
+            <filters><filter><artifact>*:*</artifact><excludes><exclude>META-INF/*.SF</exclude><exclude>META-INF/*.DSA</exclude><exclude>META-INF/*.RSA</exclude></excludes></filter></filters>
+          </configuration></execution></executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
